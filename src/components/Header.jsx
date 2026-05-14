@@ -1,9 +1,28 @@
-import { Search, RefreshCw, LayoutDashboard, Settings } from 'lucide-react'
+import { useState } from 'react'
+import { Search, RefreshCw, LayoutDashboard, Settings, ChevronDown, ChevronUp, Database, Server } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-function Header({ searchQuery, onSearchChange, onRefresh }) {
+function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle }) {
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+
+  const formatTime = (date) => {
+    if (!date) return '--:--'
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={() => setIsCollapsed(false)}
+        className="w-full h-6 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+      >
+        <ChevronUp size={14} className="mr-1" />
+        <span className="text-xs">展开顶部</span>
+      </button>
+    )
+  }
 
   return (
     <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-4 shadow-sm">
@@ -48,13 +67,37 @@ function Header({ searchQuery, onSearchChange, onRefresh }) {
         </div>
       </div>
 
-      <button
-        onClick={onRefresh}
-        className="p-1 text-white/70 hover:text-white transition-colors"
-        title="刷新数据"
-      >
-        <RefreshCw size={16} />
-      </button>
+      <div className="flex items-center gap-2">
+        <span className="text-white/50 text-xs hidden sm:inline">
+          {formatTime(lastSyncTime)}
+        </span>
+        <button
+          onClick={onApiToggle}
+          className={`p-1 transition-colors flex items-center gap-1 ${
+            useRealApi 
+              ? 'text-green-300 hover:text-green-200' 
+              : 'text-white/50 hover:text-white'
+          }`}
+          title={useRealApi ? '使用模拟数据' : '使用真实API'}
+        >
+          {useRealApi ? <Database size={14} /> : <Server size={14} />}
+          <span className="text-xs hidden sm:inline">{useRealApi ? '真实' : '模拟'}</span>
+        </button>
+        <button
+          onClick={onRefresh}
+          className="p-1 text-white/70 hover:text-white transition-colors"
+          title="刷新数据"
+        >
+          <RefreshCw size={14} />
+        </button>
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1 text-white/70 hover:text-white transition-colors"
+          title="收起顶部"
+        >
+          <ChevronDown size={14} />
+        </button>
+      </div>
     </header>
   )
 }

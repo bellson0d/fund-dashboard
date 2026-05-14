@@ -11,11 +11,11 @@ function FundCard({ fund }) {
       : 'card-neutral'
 
   return (
-    <div className={`${cardClass} rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}>
-      <div className="flex justify-between items-start mb-2">
-        <div>
+    <div className={`${cardClass} rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col`}>
+      <div className="flex justify-between items-start">
+        <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm text-gray-800 truncate">{fund.name}</h3>
-          <p className="text-xs text-gray-500">{fund.code}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{fund.code}</p>
         </div>
         <div className={`text-right ${
           isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-500'
@@ -27,10 +27,10 @@ function FundCard({ fund }) {
         </div>
       </div>
       
-      <div className="border-t border-gray-200/50 pt-2 mt-2">
-        <p className="text-xs text-gray-500 mb-1.5">持仓股票</p>
-        <div className="space-y-0.5">
-          {fund.holdings.slice(0, 5).map((stock, index) => (
+      <div className="border-t border-gray-200/50 pt-1 mt-1 flex-1">
+        <p className="text-xs text-gray-500 mb-0.5">持仓股票</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+          {fund.holdings.slice(0, 10).map((stock, index) => (
             <StockMini key={index} {...stock} />
           ))}
         </div>
