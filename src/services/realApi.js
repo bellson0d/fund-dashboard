@@ -135,11 +135,13 @@ async function fetchPingzhongData(fundCode, timestamp) {
 }
 
 function isUsStockCode(code) {
-  return /^[A-Za-z]+[0-9]+$/.test(code)
+  const result = /^[0-9]+\.[A-Za-z]+$/.test(code)
+  return result
 }
 
 function extractUsStockSymbol(code) {
-  return code.replace(/[0-9]+$/, '')
+  const match = code.match(/^[0-9]+\.([A-Za-z]+)$/)
+  return match ? match[1] : code
 }
 
 export async function batchFetchStockData(secids) {
@@ -152,12 +154,17 @@ export async function batchFetchStockData(secids) {
 
   secids.forEach(secid => {
     const cleanCode = secid.replace(/^[01]\./, '')
-    if (isUsStockCode(cleanCode)) {
+    const isUs = isUsStockCode(cleanCode)
+    console.log(`Checking code: ${secid} -> clean=${cleanCode}, isUsStock=${isUs}`)
+    if (isUs) {
       usStockCodes.push(cleanCode)
     } else {
       aShareSecids.push(secid)
     }
   })
+
+  console.log(`batchFetchStockData: aShareSecids=${aShareSecids.length}, usStockCodes=${usStockCodes.length}`)
+  console.log(`usStockCodes:`, usStockCodes)
 
   if (aShareSecids.length > 0) {
     const aShareData = await fetchAShareData(aShareSecids)
@@ -165,6 +172,7 @@ export async function batchFetchStockData(secids) {
   }
 
   if (usStockCodes.length > 0) {
+    console.log('Calling fetchUsStockData...')
     const usStockData = await fetchUsStockData(usStockCodes)
     Object.assign(results, usStockData)
   }
@@ -217,6 +225,7 @@ async function fetchAShareData(secids) {
 
   return results
 }
+
 
 async function fetchUsStockData(codes) {
   const results = {}
