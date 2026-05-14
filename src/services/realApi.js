@@ -146,10 +146,15 @@ export async function batchFetchStockData(secids) {
   for (const batch of batches) {
     const secidsStr = batch.join(',')
     const timestamp = Date.now()
-    const url = `/api/batchstock?fltt=2&invt=2&fields=f2,f3,f12,f14&secids=${secidsStr}&_=${timestamp}`
+    const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f2,f3,f12,f14&secids=${secidsStr}&_=${timestamp}`
     
     try {
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: {
+          'Referer': 'https://push2.eastmoney.com/',
+          'Origin': 'https://push2.eastmoney.com',
+        }
+      })
       if (!response.ok) {
         console.error(`Batch request failed with status ${response.status}`)
         continue
