@@ -259,7 +259,8 @@ async function fetchUsStockData(codes) {
           console.log(`Parsed US stock: ${symbol} -> name=${name}, changePercent=${changePercent}%`)
           
           batch.forEach(code => {
-            if (code.startsWith(symbol)) {
+            const codeSymbol = extractUsStockSymbol(code)
+            if (codeSymbol === symbol) {
               results[code] = {
                 code,
                 name,
