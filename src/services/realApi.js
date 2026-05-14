@@ -244,35 +244,36 @@ async function fetchUsStockData(codes) {
       const response = await fetch(url)
       const text = await response.text()
       
-      const lines = text.split('\n')
-      lines.forEach(line => {
-        const match = line.match(/v_s_us([A-Za-z]+)="([^"]+)"/)
-        if (match) {
-          const symbol = match[1]
-          const data = match[2].split('~')
-          if (data.length >= 6) {
-            const name = data[1] || symbol
-            const changePercent = parseFloat(data[5]) || 0
-            const price = parseFloat(data[3]) || 0
-            
-            codes.forEach(code => {
-              if (code.startsWith(symbol)) {
-                results[code] = {
-                  code,
-                  name,
-                  price,
-                  changePercent
-                }
+      const regex = /v_s_us([A-Za-z]+)="([^"]+)"/g
+      let match
+      while ((match = regex.exec(text)) !== null) {
+        const symbol = match[1]
+        const data = match[2].split('~')
+        if (data.length >= 6) {
+          const name = data[1] || symbol
+          const changePercent = parseFloat(data[5]) || 0
+          const price = parseFloat(data[3]) || 0
+          
+          console.log(`Parsed US stock: ${symbol} -> name=${name}, changePercent=${changePercent}%`)
+          
+          batch.forEach(code => {
+            if (code.startsWith(symbol)) {
+              results[code] = {
+                code,
+                name,
+                price,
+                changePercent
               }
-            })
-          }
+            }
+          })
         }
-      })
+      }
     } catch (error) {
       console.error('Failed to fetch US stock data:', error)
     }
   }
 
+  console.log('US stock results:', results)
   return results
 }
 
