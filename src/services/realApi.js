@@ -11,7 +11,7 @@ export async function fetchFundRealData(fundCode) {
     
     return {
       code: fundCode,
-      name: gzData.name,
+      name: gzData.name || '未知基金',
       netValue: parseFloat(gzData.dwjz) || 1.0,
       change: parseFloat(gzData.gszzl) || 0,
       holdings: pingzhongData || []
@@ -44,22 +44,90 @@ async function fetchPingzhongData(fundCode, timestamp) {
     const response = await fetch(url)
     const text = await response.text()
     
-    const codeMatch = text.match(/stockCodes\s*=\s*"([^"]+)"/)
-    const nameMatch = text.match(/stockNames\s*=\s*"([^"]+)"/)
-    const ratioMatch = text.match(/stockRatios\s*=\s*"([^"]+)"/)
+    const holdings = []
     
-    if (codeMatch && nameMatch) {
-      const codes = codeMatch[1].split(',')
-      const names = nameMatch[1].split(',')
-      const ratios = ratioMatch ? ratioMatch[1].split(',').map(r => parseFloat(r)) : []
+    const stockCodesMatch = text.match(/stockCodes\s*=\s*\[([^\]]+)\]/)
+    const stockCodesNewMatch = text.match(/stockCodesNew\s*=\s*\[([^\]]+)\]/)
+    const zqCodesMatch = text.match(/zqCodes\s*=\s*["']([^"']+)["']/)
+    const zqCodesNewMatch = text.match(/zqCodesNew\s*=\s*["']([^"']+)["']/)
+    const stockNamesMatch = text.match(/stockNames\s*=\s*["']([^"']+)["']/)
+    const stockRatiosMatch = text.match(/stockRatios\s*=\s*["']([^"']+)["']/)
+    const zqNamesMatch = text.match(/zqNames\s*=\s*["']([^"']+)["']/)
+    const zqRatiosMatch = text.match(/zqRatios\s*=\s*["']([^"']+)["']/)
+
+    const stockNames = stockNamesMatch ? stockNamesMatch[1].split(',') : []
+    const stockRatios = stockRatiosMatch ? stockRatiosMatch[1].split(',').map(r => parseFloat(r)) : []
+    const zqNames = zqNamesMatch ? zqNamesMatch[1].split(',') : []
+    const zqRatios = zqRatiosMatch ? zqRatiosMatch[1].split(',').map(r => parseFloat(r)) : []
+
+    if (stockCodesNewMatch) {
+      const codes = stockCodesNewMatch[1]
+        .replace(/["'\s]/g, '')
+        .split(',')
+        .filter(Boolean)
       
-      return codes.slice(0, 10).map((code, index) => ({
-        code,
-        name: names[index] || code,
-        ratio: ratios[index] || 0,
-        change: (Math.random() - 0.5) * 5
-      }))
+      codes.slice(0, 10).forEach((code, index) => {
+        const [market, stockCode] = code.split('.')
+        holdings.push({
+          code: stockCode || code,
+          name: stockNames[index] || `股票${index + 1}`,
+          ratio: stockRatios[index] || 0,
+          change: (Math.random() - 0.5) * 5,
+          type: 'stock'
+        })
+      })
+    } else if (stockCodesMatch) {
+      const codes = stockCodesMatch[1]
+        .replace(/["'\s]/g, '')
+        .split(',')
+        .filter(Boolean)
+      
+      codes.slice(0, 10).forEach((code, index) => {
+        const cleanCode = code.replace(/[01]$/, '')
+        holdings.push({
+          code: cleanCode,
+          name: stockNames[index] || `股票${index + 1}`,
+          ratio: stockRatios[index] || 0,
+          change: (Math.random() - 0.5) * 5,
+          type: 'stock'
+        })
+      })
     }
+
+    if (zqCodesNewMatch && holdings.length < 10) {
+      const zqCodes = zqCodesNewMatch[1]
+        .replace(/["'\s]/g, '')
+        .split(',')
+        .filter(Boolean)
+      
+      zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
+        const [market, zqCode] = code.split('.')
+        holdings.push({
+          code: zqCode || code,
+          name: zqNames[index] || `债券${index + 1}`,
+          ratio: zqRatios[index] || 0,
+          change: (Math.random() - 0.5) * 1,
+          type: 'bond'
+        })
+      })
+    } else if (zqCodesMatch && holdings.length < 10) {
+      const zqCodes = zqCodesMatch[1]
+        .replace(/["'\s]/g, '')
+        .split(',')
+        .filter(Boolean)
+      
+      zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
+        holdings.push({
+          code: code,
+          name: zqNames[index] || `债券${index + 1}`,
+          ratio: zqRatios[index] || 0,
+          change: (Math.random() - 0.5) * 1,
+          type: 'bond'
+        })
+      })
+    }
+
+    return holdings
   } catch (error) {
     console.error('Failed to fetch pingzhong data:', error)
   }

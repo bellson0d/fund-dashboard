@@ -28,7 +28,7 @@ function FundCard({ fund }) {
       </div>
       
       <div className="border-t border-gray-200/50 pt-1 mt-1 flex-1">
-        <p className="text-xs text-gray-500 mb-0.5">持仓股票</p>
+        <p className="text-xs text-gray-500 mb-0.5">持仓</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
           {fund.holdings.slice(0, 10).map((stock, index) => (
             <StockMini key={index} {...stock} />
