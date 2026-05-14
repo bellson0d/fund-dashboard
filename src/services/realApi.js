@@ -67,12 +67,13 @@ async function fetchPingzhongData(fundCode, timestamp) {
         .filter(Boolean)
       
       codes.slice(0, 10).forEach((code, index) => {
+        const isUsStock = isUsStockCode(code)
         holdings.push({
           code: code,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
           change: 0,
-          type: 'stock'
+          type: isUsStock ? 'us_stock' : 'stock'
         })
       })
     } else if (stockCodesMatch) {
@@ -83,12 +84,13 @@ async function fetchPingzhongData(fundCode, timestamp) {
       
       codes.slice(0, 10).forEach((code, index) => {
         const cleanCode = code.replace(/[01]$/, '')
+        const isUsStock = isUsStockCode(cleanCode)
         holdings.push({
-          code: getMarketPrefix(cleanCode) + cleanCode,
+          code: isUsStock ? cleanCode : getMarketPrefix(cleanCode) + cleanCode,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
           change: 0,
-          type: 'stock'
+          type: isUsStock ? 'us_stock' : 'stock'
         })
       })
     }
@@ -132,9 +134,45 @@ async function fetchPingzhongData(fundCode, timestamp) {
   return []
 }
 
+function isUsStockCode(code) {
+  return /^[A-Za-z]+[0-9]+$/.test(code)
+}
+
+function extractUsStockSymbol(code) {
+  return code.replace(/[0-9]+$/, '')
+}
+
 export async function batchFetchStockData(secids) {
   if (!secids || secids.length === 0) return {}
 
+  const results = {}
+  
+  const aShareSecids = []
+  const usStockCodes = []
+
+  secids.forEach(secid => {
+    const cleanCode = secid.replace(/^[01]\./, '')
+    if (isUsStockCode(cleanCode)) {
+      usStockCodes.push(cleanCode)
+    } else {
+      aShareSecids.push(secid)
+    }
+  })
+
+  if (aShareSecids.length > 0) {
+    const aShareData = await fetchAShareData(aShareSecids)
+    Object.assign(results, aShareData)
+  }
+
+  if (usStockCodes.length > 0) {
+    const usStockData = await fetchUsStockData(usStockCodes)
+    Object.assign(results, usStockData)
+  }
+
+  return results
+}
+
+async function fetchAShareData(secids) {
   const results = {}
   const batchSize = 20
   const batches = []
@@ -156,7 +194,7 @@ export async function batchFetchStockData(secids) {
         }
       })
       if (!response.ok) {
-        console.error(`Batch request failed with status ${response.status}`)
+        console.error(`A-share batch request failed with status ${response.status}`)
         continue
       }
       const data = await response.json()
@@ -173,7 +211,56 @@ export async function batchFetchStockData(secids) {
         })
       }
     } catch (error) {
-      console.error('Failed to fetch batch stock data:', error)
+      console.error('Failed to fetch A-share batch stock data:', error)
+    }
+  }
+
+  return results
+}
+
+async function fetchUsStockData(codes) {
+  const results = {}
+  const batchSize = 50
+  const batches = []
+
+  for (let i = 0; i < codes.length; i += batchSize) {
+    batches.push(codes.slice(i, i + batchSize))
+  }
+
+  for (const batch of batches) {
+    const symbols = batch.map(code => 's_us' + extractUsStockSymbol(code))
+    const url = `http://qt.gtimg.cn/q=${symbols.join(',')}`
+    
+    try {
+      const response = await fetch(url)
+      const text = await response.text()
+      
+      const lines = text.split('\n')
+      lines.forEach(line => {
+        const match = line.match(/v_s_us([A-Za-z]+)="([^"]+)"/)
+        if (match) {
+          const symbol = match[1]
+          const data = match[2].split('~')
+          if (data.length >= 6) {
+            const name = data[1] || symbol
+            const changePercent = parseFloat(data[5]) || 0
+            const price = parseFloat(data[3]) || 0
+            
+            codes.forEach(code => {
+              if (code.startsWith(symbol)) {
+                results[code] = {
+                  code,
+                  name,
+                  price,
+                  changePercent
+                }
+              }
+            })
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch US stock data:', error)
     }
   }
 
