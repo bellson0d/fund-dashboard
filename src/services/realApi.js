@@ -136,7 +136,7 @@ export async function batchFetchStockData(secids) {
   if (!secids || secids.length === 0) return {}
 
   const results = {}
-  const batchSize = 100
+  const batchSize = 20
   const batches = []
 
   for (let i = 0; i < secids.length; i += batchSize) {
@@ -150,6 +150,10 @@ export async function batchFetchStockData(secids) {
     
     try {
       const response = await fetch(url)
+      if (!response.ok) {
+        console.error(`Batch request failed with status ${response.status}`)
+        continue
+      }
       const data = await response.json()
       
       if (data && data.data && data.data.diff) {
