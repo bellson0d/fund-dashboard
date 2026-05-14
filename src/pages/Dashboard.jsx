@@ -8,11 +8,9 @@ import { defaultFundCodes } from '../data/mockData'
 function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
   const [funds, setFunds] = useState([])
-  const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState(false)
 
   const loadFundData = useCallback(async () => {
-    setLoading(true)
     setApiError(false)
     
     const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
@@ -77,7 +75,6 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
     } else {
       setFunds(validFunds)
     }
-    setLoading(false)
   }, [fundCodes, searchQuery, useRealApi])
 
   useEffect(() => {
@@ -92,20 +89,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
         </div>
       )}
       <div className="grid grid-cols-3 gap-5">
-        {loading ? (
-          Array(12).fill(null).map((_, i) => (
-            <div key={i} className="card-neutral rounded-xl p-3 animate-pulse">
-              <div className="h-8 bg-gray-200 rounded mb-2" />
-              <div className="space-y-0.5">
-                <div className="h-3 bg-gray-200 rounded" />
-                <div className="h-3 bg-gray-200 rounded" />
-                <div className="h-3 bg-gray-200 rounded" />
-                <div className="h-3 bg-gray-200 rounded" />
-                <div className="h-3 bg-gray-200 rounded" />
-              </div>
-            </div>
-          ))
-        ) : funds.length === 0 ? (
+        {funds.length === 0 ? (
           <div className="col-span-3 text-center py-20">
             <p className="text-gray-500">
               {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
