@@ -24,7 +24,7 @@ export async function fetchFundRealData(fundCode) {
 
 async function fetchFundGzData(fundCode, timestamp) {
   try {
-    const url = `http://fundgz.1234567.com.cn/js/${fundCode}.js?rt=${timestamp}`
+    const url = `/api/fundgz/${fundCode}.js?rt=${timestamp}`
     const response = await fetch(url)
     const text = await response.text()
     
@@ -40,7 +40,7 @@ async function fetchFundGzData(fundCode, timestamp) {
 
 async function fetchPingzhongData(fundCode, timestamp) {
   try {
-    const url = `https://fund.eastmoney.com/pingzhongdata/${fundCode}.js?v=${timestamp}`
+    const url = `/api/pingzhong/${fundCode}.js?v=${timestamp}`
     const response = await fetch(url)
     const text = await response.text()
     
@@ -69,7 +69,7 @@ async function fetchPingzhongData(fundCode, timestamp) {
 export async function fetchStockRealData(stockCode) {
   try {
     const market = getMarketPrefix(stockCode)
-    const url = `http://push2.eastmoney.com/api/qt/stock/get?secid=${market}${stockCode}&fields=f57,f58,f116,f107,f108,f117`
+    const url = `/api/stock?secid=${market}${stockCode}&fields=f57,f58,f116,f107,f108,f117`
     
     const response = await fetch(url)
     const data = await response.json()
