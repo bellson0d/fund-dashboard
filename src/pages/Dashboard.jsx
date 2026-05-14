@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import FundCard from '../components/FundCard'
 import { fetchFundData } from '../services/api'
-import { fetchFundRealData } from '../services/realApi'
+import { fetchFundRealData, batchFetchStockData } from '../services/realApi'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 
@@ -21,25 +21,59 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
       fundCodes.map(code => fetchFn(code))
     )
     
-    const validFunds = results.filter(Boolean)
+    let validFunds = results.filter(Boolean)
+    
+    if (useRealApi && validFunds.length > 0) {
+      const secids = []
+      validFunds.forEach(fund => {
+        fund.holdings.forEach(holding => {
+          if (holding.code && !secids.includes(holding.code)) {
+            secids.push(holding.code)
+          }
+        })
+      })
+      
+      if (secids.length > 0) {
+        try {
+          const stockData = await batchFetchStockData(secids)
+          
+          validFunds = validFunds.map(fund => ({
+            ...fund,
+            holdings: fund.holdings.map(holding => {
+              const realData = stockData[holding.name]
+              if (realData) {
+                return {
+                  ...holding,
+                  change: realData.changePercent || holding.change,
+                  price: realData.price
+                }
+              }
+              return holding
+            })
+          }))
+        } catch (error) {
+          console.error('Failed to fetch batch stock data:', error)
+        }
+      }
+    }
     
     if (useRealApi && validFunds.length === 0) {
       setApiError(true)
       const mockResults = await Promise.all(
         fundCodes.map(code => fetchFundData(code))
       )
-      setFunds(mockResults.filter(Boolean))
+      validFunds = mockResults.filter(Boolean)
+    }
+    
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase()
+      const filtered = validFunds.filter(fund => 
+        fund.name.toLowerCase().includes(lowerQuery) ||
+        fund.code.includes(searchQuery)
+      )
+      setFunds(filtered)
     } else {
-      if (searchQuery) {
-        const lowerQuery = searchQuery.toLowerCase()
-        const filtered = validFunds.filter(fund => 
-          fund.name.toLowerCase().includes(lowerQuery) ||
-          fund.code.includes(searchQuery)
-        )
-        setFunds(filtered)
-      } else {
-        setFunds(validFunds)
-      }
+      setFunds(validFunds)
     }
     setLoading(false)
   }, [fundCodes, searchQuery, useRealApi])

@@ -67,12 +67,11 @@ async function fetchPingzhongData(fundCode, timestamp) {
         .filter(Boolean)
       
       codes.slice(0, 10).forEach((code, index) => {
-        const [market, stockCode] = code.split('.')
         holdings.push({
-          code: stockCode || code,
+          code: code,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
-          change: (Math.random() - 0.5) * 5,
+          change: 0,
           type: 'stock'
         })
       })
@@ -85,10 +84,10 @@ async function fetchPingzhongData(fundCode, timestamp) {
       codes.slice(0, 10).forEach((code, index) => {
         const cleanCode = code.replace(/[01]$/, '')
         holdings.push({
-          code: cleanCode,
+          code: getMarketPrefix(cleanCode) + cleanCode,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
-          change: (Math.random() - 0.5) * 5,
+          change: 0,
           type: 'stock'
         })
       })
@@ -101,12 +100,11 @@ async function fetchPingzhongData(fundCode, timestamp) {
         .filter(Boolean)
       
       zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
-        const [market, zqCode] = code.split('.')
         holdings.push({
-          code: zqCode || code,
+          code: code,
           name: zqNames[index] || `债券${index + 1}`,
           ratio: zqRatios[index] || 0,
-          change: (Math.random() - 0.5) * 1,
+          change: 0,
           type: 'bond'
         })
       })
@@ -118,10 +116,10 @@ async function fetchPingzhongData(fundCode, timestamp) {
       
       zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
         holdings.push({
-          code: code,
+          code: getMarketPrefix(code) + code,
           name: zqNames[index] || `债券${index + 1}`,
           ratio: zqRatios[index] || 0,
-          change: (Math.random() - 0.5) * 1,
+          change: 0,
           type: 'bond'
         })
       })
@@ -132,6 +130,45 @@ async function fetchPingzhongData(fundCode, timestamp) {
     console.error('Failed to fetch pingzhong data:', error)
   }
   return []
+}
+
+export async function batchFetchStockData(secids) {
+  if (!secids || secids.length === 0) return {}
+
+  const results = {}
+  const batchSize = 100
+  const batches = []
+
+  for (let i = 0; i < secids.length; i += batchSize) {
+    batches.push(secids.slice(i, i + batchSize))
+  }
+
+  for (const batch of batches) {
+    const secidsStr = batch.join(',')
+    const timestamp = Date.now()
+    const url = `/api/batchstock?fltt=2&invt=2&fields=f2,f3,f12,f14&secids=${secidsStr}&_=${timestamp}`
+    
+    try {
+      const response = await fetch(url)
+      const data = await response.json()
+      
+      if (data && data.data && data.data.diff) {
+        data.data.diff.forEach(item => {
+          const code = item.f12
+          results[item.f14] = {
+            code,
+            name: item.f14,
+            price: parseFloat(item.f2) || 0,
+            changePercent: parseFloat(item.f3) || 0
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch batch stock data:', error)
+    }
+  }
+
+  return results
 }
 
 export async function fetchStockRealData(stockCode) {
@@ -157,11 +194,17 @@ export async function fetchStockRealData(stockCode) {
   return null
 }
 
-function getMarketPrefix(stockCode) {
-  if (stockCode.startsWith('6')) return '1.'
-  if (stockCode.startsWith('0') || stockCode.startsWith('2')) return '0.'
-  if (stockCode.startsWith('3')) return '0.'
-  if (stockCode.startsWith('68')) return '1.'
-  if (stockCode.startsWith('BJ') || stockCode.startsWith('bj')) return '1.'
+function getMarketPrefix(code) {
+  if (!code || typeof code !== 'string') return '0.'
+  
+  const cleanCode = code.replace(/^[01]\./, '')
+  
+  if (cleanCode.startsWith('6')) return '1.'
+  if (cleanCode.startsWith('0') || cleanCode.startsWith('2')) return '0.'
+  if (cleanCode.startsWith('3')) return '0.'
+  if (cleanCode.startsWith('68')) return '1.'
+  if (cleanCode.startsWith('11')) return '1.'
+  if (cleanCode.startsWith('12')) return '0.'
+  if (cleanCode.startsWith('BJ') || cleanCode.startsWith('bj')) return '1.'
   return '0.'
 }
