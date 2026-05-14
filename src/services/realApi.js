@@ -1,60 +1,69 @@
 export async function fetchFundRealData(fundCode) {
   try {
-    const url = `http://fund.eastmoney.com/pingzhongdata/${fundCode}.js`
+    const timestamp = Date.now()
+    
+    const [gzData, pingzhongData] = await Promise.all([
+      fetchFundGzData(fundCode, timestamp),
+      fetchPingzhongData(fundCode, timestamp)
+    ])
+    
+    if (!gzData) return null
+    
+    return {
+      code: fundCode,
+      name: gzData.name,
+      netValue: parseFloat(gzData.dwjz) || 1.0,
+      change: parseFloat(gzData.gszzl) || 0,
+      holdings: pingzhongData || []
+    }
+  } catch (error) {
+    console.error('Failed to fetch real fund data:', error)
+    return null
+  }
+}
+
+async function fetchFundGzData(fundCode, timestamp) {
+  try {
+    const url = `http://fundgz.1234567.com.cn/js/${fundCode}.js?rt=${timestamp}`
     const response = await fetch(url)
     const text = await response.text()
     
-    const data = parseFundData(text, fundCode)
-    if (data) {
-      return data
+    const match = text.match(/jsonpgz\((.*)\)/)
+    if (match) {
+      return JSON.parse(match[1])
     }
   } catch (error) {
-    console.error('Failed to fetch fund data:', error)
+    console.error('Failed to fetch fund gz data:', error)
   }
   return null
 }
 
-function parseFundData(text, fundCode) {
+async function fetchPingzhongData(fundCode, timestamp) {
   try {
-    const nameMatch = text.match(/var fund_name = "([^"]+)"/)
-    const netValueMatch = text.match(/var fund_netvalue = "([^"]+)"/)
-    const changeMatch = text.match(/var fund_daygrow = "([^"]+)"/)
+    const url = `https://fund.eastmoney.com/pingzhongdata/${fundCode}.js?v=${timestamp}`
+    const response = await fetch(url)
+    const text = await response.text()
     
-    const holdingsMatch = text.match(/var stockCodes = "([^"]+)"/)
-    const stockNamesMatch = text.match(/var stockNames = "([^"]+)"/)
-    const stockRatiosMatch = text.match(/var stockRatios = "([^"]+)"/)
-
-    const name = nameMatch ? nameMatch[1] : `${fundCode}基金`
-    const netValue = netValueMatch ? parseFloat(netValueMatch[1]) : 1.0
-    const change = changeMatch ? parseFloat(changeMatch[1]) : 0
+    const codeMatch = text.match(/stockCodes\s*=\s*"([^"]+)"/)
+    const nameMatch = text.match(/stockNames\s*=\s*"([^"]+)"/)
+    const ratioMatch = text.match(/stockRatios\s*=\s*"([^"]+)"/)
     
-    const holdings = []
-    if (holdingsMatch && stockNamesMatch && stockRatiosMatch) {
-      const codes = holdingsMatch[1].split(',')
-      const names = stockNamesMatch[1].split(',')
-      const ratios = stockRatiosMatch[1].split(',').map(r => parseFloat(r))
+    if (codeMatch && nameMatch) {
+      const codes = codeMatch[1].split(',')
+      const names = nameMatch[1].split(',')
+      const ratios = ratioMatch ? ratioMatch[1].split(',').map(r => parseFloat(r)) : []
       
-      for (let i = 0; i < Math.min(codes.length, names.length, ratios.length); i++) {
-        holdings.push({
-          code: codes[i],
-          name: names[i],
-          ratio: ratios[i] || 0,
-          change: (Math.random() - 0.5) * 5
-        })
-      }
-    }
-
-    return {
-      code: fundCode,
-      name,
-      netValue,
-      change,
-      holdings: holdings.slice(0, 10)
+      return codes.slice(0, 10).map((code, index) => ({
+        code,
+        name: names[index] || code,
+        ratio: ratios[index] || 0,
+        change: (Math.random() - 0.5) * 5
+      }))
     }
   } catch (error) {
-    console.error('Failed to parse fund data:', error)
-    return null
+    console.error('Failed to fetch pingzhong data:', error)
   }
+  return []
 }
 
 export async function fetchStockRealData(stockCode) {
