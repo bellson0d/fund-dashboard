@@ -8,7 +8,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [lastSyncTime, setLastSyncTime] = useState(null)
-  const [useRealApi, setUseRealApi] = useState(false)
+  const [useRealApi, setUseRealApi] = useState(true)
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
