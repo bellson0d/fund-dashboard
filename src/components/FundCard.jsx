@@ -1,14 +1,17 @@
 import StockMini from './StockMini'
 
 function FundCard({ fund }) {
-  const isUp = fund.change > 0
-  const isDown = fund.change < 0
+  const upCount = fund.holdings.filter(h => h.change > 0).length
+  const downCount = fund.holdings.filter(h => h.change < 0).length
   
-  const cardClass = isUp 
-    ? 'card-up' 
-    : isDown 
-      ? 'card-down' 
-      : 'card-neutral'
+  let cardClass
+  if (upCount > downCount) {
+    cardClass = 'card-up'
+  } else if (downCount > upCount) {
+    cardClass = 'card-down'
+  } else {
+    cardClass = 'card-neutral'
+  }
 
   return (
     <div className={`${cardClass} rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col`}>
