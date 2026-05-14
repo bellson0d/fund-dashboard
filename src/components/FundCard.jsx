@@ -3,6 +3,8 @@ import StockMini from './StockMini'
 function FundCard({ fund }) {
   const upCount = fund.holdings.filter(h => h.change > 0).length
   const downCount = fund.holdings.filter(h => h.change < 0).length
+  const isUp = fund.change > 0
+  const isDown = fund.change < 0
   
   let cardClass
   if (upCount > downCount) {
