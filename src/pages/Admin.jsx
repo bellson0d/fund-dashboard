@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, ArrowUpDown, Save, RefreshCw, Loader2 } from 'lucide-react'
+import { Plus, X, ChevronUp, ChevronDown, Save, RefreshCw, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 import { getFundList, searchFunds, getCacheStatus, clearFundListCache } from '../services/fundListService'
@@ -150,14 +150,14 @@ function Admin() {
                     disabled={index === 0}
                     className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                   >
-                    <ArrowUpDown size={14} className="rotate-[-90deg]" />
+                    <ChevronUp size={14} />
                   </button>
                   <button
                     onClick={() => moveDown(index)}
                     disabled={index === fundCodes.length - 1}
                     className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
                   >
-                    <ArrowUpDown size={14} className="rotate-90" />
+                    <ChevronDown size={14} />
                   </button>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-gray-800 truncate">
