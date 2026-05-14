@@ -164,7 +164,7 @@ export async function batchFetchStockData(secids) {
       if (data && data.data && data.data.diff) {
         data.data.diff.forEach(item => {
           const code = item.f12
-          results[item.f14] = {
+          results[code] = {
             code,
             name: item.f14,
             price: parseFloat(item.f2) || 0,

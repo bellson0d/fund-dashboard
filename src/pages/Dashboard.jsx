@@ -40,10 +40,12 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           validFunds = validFunds.map(fund => ({
             ...fund,
             holdings: fund.holdings.map(holding => {
-              const realData = stockData[holding.name]
+              const cleanCode = holding.code ? holding.code.replace(/^[01]\./, '') : ''
+              const realData = stockData[cleanCode]
               if (realData) {
                 return {
                   ...holding,
+                  name: realData.name || holding.name,
                   change: realData.changePercent || holding.change,
                   price: realData.price
                 }
