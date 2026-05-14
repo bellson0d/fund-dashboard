@@ -10,7 +10,7 @@ function StockMini({ name, change, ratio }) {
           <span className="text-gray-400 truncate block text-[10px]">{ratio}%</span>
         )}
       </div>
-      <span className={`font-medium w-7 text-right ml-1 ${
+      <span className={`font-medium w-11 text-left ml-1 ${
         isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-500'
       }`}>
         {isUp ? '+' : ''}{change.toFixed(1)}%

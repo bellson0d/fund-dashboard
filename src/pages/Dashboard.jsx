@@ -55,7 +55,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           真实API获取失败，已自动切换到模拟数据
         </div>
       )}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-5">
         {loading ? (
           Array(12).fill(null).map((_, i) => (
             <div key={i} className="card-neutral rounded-xl p-3 animate-pulse">
