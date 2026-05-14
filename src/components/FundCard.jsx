@@ -18,7 +18,7 @@ function FundCard({ fund }) {
           <p className="text-xs text-gray-500 mt-0.5">{fund.code}</p>
         </div>
         <div className={`text-right ${
-          isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-500'
+          isUp ? 'text-red-600' : isDown ? 'text-green-600' : 'text-gray-500'
         }`}>
           <p className="text-lg font-bold">{fund.netValue.toFixed(4)}</p>
           <p className="text-xs font-medium">

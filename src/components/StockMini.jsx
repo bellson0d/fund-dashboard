@@ -12,7 +12,7 @@ function StockMini({ name, change, type }) {
         </span>
       </div>
       <span className={`font-medium w-10 text-left ml-1 ${
-        isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-gray-500'
+        isUp ? 'text-red-600' : isDown ? 'text-green-600' : 'text-gray-500'
       }`}>
         {isUp ? '+' : ''}{change.toFixed(1)}%
       </span>
