@@ -40,7 +40,9 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
             holdings: fund.holdings.map(holding => {
               const cleanCode = holding.code ? holding.code.replace(/^[01]\./, '') : ''
               const realData = stockData[cleanCode]
+              console.log(`Matching holding: code=${holding.code}, cleanCode=${cleanCode}, realData=${realData ? 'found' : 'not found'}, current name=${holding.name}`)
               if (realData) {
+                console.log(`  -> updating to name=${realData.name}, change=${realData.changePercent}`)
                 return {
                   ...holding,
                   name: realData.name || holding.name,
