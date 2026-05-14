@@ -3,7 +3,7 @@ function StockMini({ name, change, ratio }) {
   const isDown = change < 0
 
   return (
-    <div className="flex items-center justify-between text-xs py-0.5 px-1.5 bg-white/60 rounded-md border border-gray-100">
+    <div className="flex items-center justify-between text-xs py-0.5 px-1.5 bg-white/30 rounded-md">
       <div className="flex-1 min-w-0">
         <span className="text-gray-700 truncate block">{name}</span>
         {ratio && (
