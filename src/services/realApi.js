@@ -242,7 +242,9 @@ async function fetchUsStockData(codes) {
     
     try {
       const response = await fetch(url)
-      const text = await response.text()
+      const arrayBuffer = await response.arrayBuffer()
+      const decoder = new TextDecoder('GBK')
+      const text = decoder.decode(arrayBuffer)
       
       const regex = /v_s_us([A-Za-z]+)="([^"]+)"/g
       let match
