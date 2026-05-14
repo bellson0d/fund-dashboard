@@ -1,18 +1,36 @@
-import { useState } from 'react'
-import { Plus, X, ArrowUpDown, Save } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, X, ArrowUpDown, Save, RefreshCw, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
-import { defaultFundCodes, mockFunds } from '../data/mockData'
+import { defaultFundCodes } from '../data/mockData'
+import { getFundList, searchFunds, getCacheStatus, clearFundListCache } from '../services/fundListService'
 
 function Admin() {
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [saved, setSaved] = useState(false)
+  const [fundList, setFundList] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [cacheStatus, setCacheStatus] = useState(null)
 
-  const availableFunds = mockFunds.filter(f => !fundCodes.includes(f.code))
-  const filteredFunds = availableFunds.filter(f => 
-    f.name.includes(searchKeyword) || f.code.includes(searchKeyword)
-  )
+  useEffect(() => {
+    loadFundList()
+  }, [])
+
+  useEffect(() => {
+    setCacheStatus(getCacheStatus())
+  }, [fundList])
+
+  const loadFundList = async (forceRefresh = false) => {
+    setIsLoading(true)
+    const funds = await getFundList(forceRefresh)
+    setFundList(funds)
+    setIsLoading(false)
+    setCacheStatus(getCacheStatus())
+  }
+
+  const availableFunds = fundList.filter(f => !fundCodes.includes(f.code))
+  const filteredFunds = searchKeyword ? searchFunds(searchKeyword, availableFunds) : availableFunds.slice(0, 20)
 
   const addFund = (code) => {
     setFundCodes([...fundCodes, code])
@@ -50,6 +68,15 @@ function Admin() {
     setSaved(false)
   }
 
+  const handleRefreshCache = () => {
+    clearFundListCache()
+    loadFundList(true)
+  }
+
+  const getFundInfo = (code) => {
+    return fundList.find(f => f.code === code)
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-4">
@@ -82,6 +109,32 @@ function Admin() {
         </div>
       </div>
 
+      {cacheStatus && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-blue-800">
+              {cacheStatus.exists ? (
+                <>
+                  已缓存 {cacheStatus.count.toLocaleString()} 只基金，
+                  缓存时间：{cacheStatus.hours} 小时前
+                  {!cacheStatus.isValid && <span className="text-orange-600 ml-2">(缓存已过期)</span>}
+                </>
+              ) : (
+                '暂无缓存，首次加载可能较慢'
+              )}
+            </div>
+            <button
+              onClick={handleRefreshCache}
+              disabled={isLoading}
+              className="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+              刷新缓存
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm p-4">
         <h2 className="text-sm font-medium text-gray-600 mb-3">已添加的基金 ({fundCodes.length})</h2>
         {fundCodes.length === 0 ? (
@@ -89,7 +142,7 @@ function Admin() {
         ) : (
           <div className="space-y-2">
             {fundCodes.map((code, index) => {
-              const fund = mockFunds.find(f => f.code === code)
+              const fund = getFundInfo(code)
               return (
                 <div key={code} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                   <button
@@ -107,10 +160,10 @@ function Admin() {
                     <ArrowUpDown size={14} className="rotate-90" />
                   </button>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-gray-800">
+                    <p className="font-medium text-sm text-gray-800 truncate">
                       {fund?.name || code}
                     </p>
-                    <p className="text-xs text-gray-500">{code}</p>
+                    <p className="text-xs text-gray-500">{code} {fund?.type && `· ${fund.type}`}</p>
                   </div>
                   <button
                     onClick={() => removeFund(code)}
@@ -147,7 +200,11 @@ function Admin() {
             />
             
             <div className="mt-3 max-h-60 overflow-y-auto space-y-2">
-              {filteredFunds.length === 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={20} className="animate-spin text-gray-500" />
+                </div>
+              ) : filteredFunds.length === 0 ? (
                 <p className="text-gray-500 text-sm text-center py-4">
                   {availableFunds.length === 0 ? '所有基金已添加' : '未找到匹配的基金'}
                 </p>
@@ -157,13 +214,13 @@ function Admin() {
                     key={fund.code}
                     className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
-                    <div>
-                      <p className="font-medium text-sm text-gray-800">{fund.name}</p>
-                      <p className="text-xs text-gray-500">{fund.code}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-800 truncate">{fund.name}</p>
+                      <p className="text-xs text-gray-500">{fund.code} · {fund.type}</p>
                     </div>
                     <button
                       onClick={() => addFund(fund.code)}
-                      className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                      className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
                     >
                       添加
                     </button>

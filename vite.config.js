@@ -26,6 +26,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/stock/, '/api/qt/stock/get'),
       },
+      '/api/fundlist': {
+        target: 'http://fund.eastmoney.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/fundlist/, '/js/fundcode_search.js'),
+      },
     },
   },
 })
