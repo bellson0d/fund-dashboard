@@ -14,13 +14,13 @@ body {
 }
 
 .card-up {
-  background: linear-gradient(135deg, #dcfce7 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #fee2e2 0%, #ffffff 100%);
 }
 
 .card-down {
-  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #dcfce7 0%, #ffffff 100%);
 }
 
 .card-neutral {
-  background: linear-gradient(135deg, #fefce8 0%, #ffffff 100%);
+  background: #ffffff;
 }
