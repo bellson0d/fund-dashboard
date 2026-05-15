@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Search, RefreshCw, LayoutDashboard, Settings, ChevronDown, ChevronUp, Database, Server } from 'lucide-react'
+import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, Database, Server } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle }) {
+function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle, activeTab }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -24,26 +24,41 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
     )
   }
 
+  const isFund = activeTab === 'fund'
+  const isStock = activeTab === 'stock'
+  const isAdmin = activeTab === 'admin'
+
   return (
     <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-4 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="text-white font-semibold text-sm">基金数据</div>
+        <div className="text-white font-semibold text-sm">投资看板</div>
         <div className="flex gap-1">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/fund')}
             className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-              location.pathname === '/'
+              isFund
                 ? 'bg-white/20 text-white'
                 : 'text-white/70 hover:text-white'
             }`}
           >
             <LayoutDashboard size={12} />
-            <span>Dashboard</span>
+            <span>Fund</span>
+          </button>
+          <button
+            onClick={() => navigate('/stock')}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+              isStock
+                ? 'bg-white/20 text-white'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <TrendingUp size={12} />
+            <span>Stock</span>
           </button>
           <button
             onClick={() => navigate('/admin')}
             className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-              location.pathname === '/admin'
+              isAdmin
                 ? 'bg-white/20 text-white'
                 : 'text-white/70 hover:text-white'
             }`}
@@ -61,7 +76,7 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="搜索基金名称或代码..."
+            placeholder={`搜索${isStock ? '股票' : '基金'}名称或代码...`}
             className="w-full h-5 pl-7 pr-3 bg-white/90 text-xs rounded-full focus:outline-none focus:ring-1 focus:ring-white"
           />
         </div>
