@@ -65,9 +65,9 @@ function Stock({ searchQuery, refreshKey }) {
           获取股票数据失败，请稍后重试
         </div>
       )}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {stocks.length === 0 ? (
-          <div className="col-span-4 text-center py-10">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-10">
             <p className="text-gray-500">
               {searchQuery ? '未找到匹配的股票' : '暂无股票数据，请在 Admin 中添加股票'}
             </p>

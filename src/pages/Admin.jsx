@@ -158,7 +158,7 @@ function Admin() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <div>
           <h1 className="text-lg font-semibold text-gray-800">数据管理</h1>
           <div className="flex gap-2 mt-2">
@@ -184,16 +184,16 @@ function Admin() {
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button
             onClick={handleReset}
-            className="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            className="flex-1 sm:flex-none px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
           >
             重置默认
           </button>
           <button
             onClick={handleSave}
-            className={`px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1 ${
+            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${
               saved 
                 ? 'bg-green-500 text-white' 
                 : 'bg-blue-500 text-white hover:bg-blue-600'
@@ -204,7 +204,7 @@ function Admin() {
           </button>
           <button
             onClick={adminTab === 'fund' ? handleAddFund : handleAddStock}
-            className="px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1"
+            className="flex-1 sm:flex-none px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-1"
           >
             <Plus size={12} />
             {adminTab === 'fund' ? '添加基金' : '添加股票'}
@@ -214,8 +214,8 @@ function Admin() {
 
       {adminTab === 'fund' && currentCacheStatus && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-blue-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="text-xs sm:text-sm text-blue-800">
               {currentCacheStatus.exists ? (
                 <>
                   已缓存 {currentCacheStatus.count.toLocaleString()} 只基金，

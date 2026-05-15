@@ -29,61 +29,61 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
   const isAdmin = activeTab === 'admin'
 
   return (
-    <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-4 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="text-white font-semibold text-sm">投资看板</div>
-        <div className="flex gap-1">
+    <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-2 sm:px-4 shadow-sm">
+      <div className="flex items-center gap-1 sm:gap-3">
+        <div className="text-white font-semibold text-xs sm:text-sm">投资看板</div>
+        <div className="flex gap-0.5 sm:gap-1">
           <button
             onClick={() => navigate('/fund')}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+            className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs transition-colors ${
               isFund
                 ? 'bg-white/20 text-white'
                 : 'text-white/70 hover:text-white'
             }`}
           >
             <LayoutDashboard size={12} />
-            <span>Fund</span>
+            <span className="hidden sm:inline">Fund</span>
           </button>
           <button
             onClick={() => navigate('/stock')}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+            className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs transition-colors ${
               isStock
                 ? 'bg-white/20 text-white'
                 : 'text-white/70 hover:text-white'
             }`}
           >
             <TrendingUp size={12} />
-            <span>Stock</span>
+            <span className="hidden sm:inline">Stock</span>
           </button>
           <button
             onClick={() => navigate('/admin')}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+            className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs transition-colors ${
               isAdmin
                 ? 'bg-white/20 text-white'
                 : 'text-white/70 hover:text-white'
             }`}
           >
             <Settings size={12} />
-            <span>Admin</span>
+            <span className="hidden sm:inline">Admin</span>
           </button>
         </div>
       </div>
 
-      <div className="flex-1 max-w-md mx-4">
+      <div className="flex-1 max-w-xs sm:max-w-md mx-2 sm:mx-4">
         <div className="relative">
           <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={`搜索${isStock ? '股票' : '基金'}名称或代码...`}
+            placeholder={`搜索${isStock ? '股票' : '基金'}...`}
             className="w-full h-5 pl-7 pr-3 bg-white/90 text-xs rounded-full focus:outline-none focus:ring-1 focus:ring-white"
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-white/50 text-xs hidden sm:inline">
+      <div className="flex items-center gap-1 sm:gap-2">
+        <span className="text-white/50 text-xs hidden md:inline">
           {formatTime(lastSyncTime)}
         </span>
         <button
@@ -96,7 +96,7 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
           title={useRealApi ? '使用模拟数据' : '使用真实API'}
         >
           {useRealApi ? <Database size={14} /> : <Server size={14} />}
-          <span className="text-xs hidden sm:inline">{useRealApi ? '真实' : '模拟'}</span>
+          <span className="text-xs hidden md:inline">{useRealApi ? '真实' : '模拟'}</span>
         </button>
         <button
           onClick={onRefresh}

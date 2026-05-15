@@ -94,9 +94,9 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           真实API获取失败，已自动切换到模拟数据
         </div>
       )}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {funds.length === 0 ? (
-          <div className="col-span-3 text-center py-10">
+          <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-10">
             <p className="text-gray-500">
               {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
             </p>
