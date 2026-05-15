@@ -86,13 +86,13 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   return (
     <div>
       {apiError && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
+        <div className="mb-2 p-2 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
           真实API获取失败，已自动切换到模拟数据
         </div>
       )}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-3 gap-3">
         {funds.length === 0 ? (
-          <div className="col-span-3 text-center py-20">
+          <div className="col-span-3 text-center py-10">
             <p className="text-gray-500">
               {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
             </p>
