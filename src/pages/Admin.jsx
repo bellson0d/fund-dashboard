@@ -247,7 +247,7 @@ function Admin() {
             暂无{adminTab === 'fund' ? '基金' : '股票'}，请添加
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
             {currentCodes.map((code, index) => {
               const item = getItemInfo(code)
               return (
