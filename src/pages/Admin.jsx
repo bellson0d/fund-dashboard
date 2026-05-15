@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, ChevronUp, ChevronDown, Save, RefreshCw, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 import { defaultStockCodes } from '../data/stockData'
-import { getFundList, searchFunds, getCacheStatus, clearFundListCache } from '../services/fundListService'
+import { getFundList, searchFunds, getCacheStatus as getFundCacheStatus, clearFundListCache } from '../services/fundListService'
+import { searchStocks as searchStocksAPI } from '../services/stockSearchService'
 
 function Admin() {
   const [adminTab, setAdminTab] = useState('fund')
@@ -16,15 +17,19 @@ function Admin() {
   const [saved, setSaved] = useState(false)
   
   const [fundList, setFundList] = useState([])
+  const [stockSearchResults, setStockSearchResults] = useState([])
+  const [stockInfoCache, setStockInfoCache] = useLocalStorage('stockInfoCache', {})
   const [isLoading, setIsLoading] = useState(false)
-  const [cacheStatus, setCacheStatus] = useState(null)
+  const [fundCacheStatus, setFundCacheStatus] = useState(null)
+  
+  const searchTimeoutRef = useRef(null)
 
   useEffect(() => {
     loadFundList()
   }, [])
 
   useEffect(() => {
-    setCacheStatus(getCacheStatus())
+    setFundCacheStatus(getFundCacheStatus())
   }, [fundList])
 
   const loadFundList = async (forceRefresh = false) => {
@@ -32,27 +37,66 @@ function Admin() {
     const funds = await getFundList(forceRefresh)
     setFundList(funds)
     setIsLoading(false)
-    setCacheStatus(getCacheStatus())
+    setFundCacheStatus(getFundCacheStatus())
   }
+
+  const searchStocksWithDebounce = useCallback((keyword) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    if (!keyword || keyword.trim().length === 0) {
+      setStockSearchResults([])
+      return
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsLoading(true)
+      const results = await searchStocksAPI(keyword)
+      const filtered = results.filter(item => !stockCodes.includes(item.code))
+      setStockSearchResults(filtered)
+      setIsLoading(false)
+    }, 500)
+  }, [stockCodes])
+
+  useEffect(() => {
+    if (adminTab === 'stock' && searchKeyword) {
+      searchStocksWithDebounce(searchKeyword)
+    }
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchKeyword, adminTab, searchStocksWithDebounce])
 
   const currentCodes = adminTab === 'fund' ? fundCodes : stockCodes
   const setCurrentCodes = adminTab === 'fund' ? setFundCodes : setStockCodes
   const defaultCodes = adminTab === 'fund' ? defaultFundCodes : defaultStockCodes
   const currentList = adminTab === 'fund' ? fundList : []
+  const currentCacheStatus = adminTab === 'fund' ? fundCacheStatus : null
 
-  const availableItems = currentList.filter(f => !currentCodes.includes(f.code))
-  const filteredItems = searchKeyword 
-    ? (adminTab === 'fund' 
-        ? searchFunds(searchKeyword, availableItems) 
-        : availableItems.filter(s => 
-            s.name.toLowerCase().includes(searchKeyword.toLowerCase()) || 
-            s.code.includes(searchKeyword)
-          ).slice(0, 20))
-    : availableItems.slice(0, 20)
+  const availableItems = adminTab === 'fund' 
+    ? currentList.filter(f => !currentCodes.includes(f.code))
+    : []
+  
+  const filteredItems = adminTab === 'fund'
+    ? (searchKeyword ? searchFunds(searchKeyword, availableItems) : availableItems.slice(0, 20))
+    : stockSearchResults
 
   const addItem = (code) => {
     setCurrentCodes([...currentCodes, code])
     setSaved(false)
+    
+    if (adminTab === 'stock') {
+      const stockInfo = filteredItems.find(item => item.code === code)
+      if (stockInfo) {
+        setStockInfoCache(prev => ({
+          ...prev,
+          [code]: stockInfo
+        }))
+      }
+    }
   }
 
   const removeItem = (code) => {
@@ -94,10 +138,16 @@ function Admin() {
   }
 
   const getItemInfo = (code) => {
-    return currentList.find(f => f.code === code)
+    if (adminTab === 'fund') {
+      return currentList.find(f => f.code === code)
+    } else {
+      return stockInfoCache[code] || null
+    }
   }
 
   const handleAddStock = () => {
+    setSearchKeyword('')
+    setStockSearchResults([])
     setShowAddModal(true)
   }
 
@@ -162,15 +212,15 @@ function Admin() {
         </div>
       </div>
 
-      {adminTab === 'fund' && cacheStatus && (
+      {adminTab === 'fund' && currentCacheStatus && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-between">
             <div className="text-sm text-blue-800">
-              {cacheStatus.exists ? (
+              {currentCacheStatus.exists ? (
                 <>
-                  已缓存 {cacheStatus.count.toLocaleString()} 只基金，
-                  缓存时间：{cacheStatus.hours} 小时前
-                  {!cacheStatus.isValid && <span className="text-orange-600 ml-2">(缓存已过期)</span>}
+                  已缓存 {currentCacheStatus.count.toLocaleString()} 只基金，
+                  缓存时间：{currentCacheStatus.hours} 小时前
+                  {!currentCacheStatus.isValid && <span className="text-orange-600 ml-2">(缓存已过期)</span>}
                 </>
               ) : (
                 '暂无缓存，首次加载可能较慢'
@@ -222,6 +272,7 @@ function Admin() {
                     </p>
                     <p className="text-xs text-gray-500">
                       {code} {adminTab === 'fund' && item?.type && `· ${item.type}`}
+                      {adminTab === 'stock' && item?.market && `· ${item.market}`}
                     </p>
                   </div>
                   <button
@@ -252,83 +303,58 @@ function Admin() {
               </button>
             </div>
             
-            {adminTab === 'stock' ? (
-              <>
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="输入股票代码（如：0.600519、1.688981）..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="mt-3 max-h-60 overflow-y-auto space-y-2">
-                  {filteredItems.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
-                      请输入股票代码
-                    </p>
-                  ) : null}
-                  {searchKeyword && (
-                    <div
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder={adminTab === 'fund' ? '搜索基金名称或代码...' : '搜索股票名称或代码...'}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            
+            <div className="mt-3 max-h-60 overflow-y-auto space-y-2">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={20} className="animate-spin text-gray-500" />
+                  <span className="ml-2 text-sm text-gray-500">
+                    {adminTab === 'fund' ? '获取基金列表中...' : '搜索股票中...'}
+                  </span>
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">
+                  {adminTab === 'stock' 
+                    ? (searchKeyword 
+                        ? '未找到匹配的股票' 
+                        : '输入股票名称(如"比亚迪")、拼音(如"byd")或代码(如"002594")进行搜索')
+                    : (searchKeyword && availableItems.length === 0 
+                        ? '所有基金已添加' 
+                        : searchKeyword 
+                        ? '未找到匹配的基金'
+                        : '输入基金名称或代码进行搜索')}
+                </p>
+              ) : (
+                filteredItems.map(item => (
+                  <div
+                    key={item.code}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.code} 
+                        {adminTab === 'fund' && item.type && ` · ${item.type}`}
+                        {adminTab === 'stock' && item.market && ` · ${item.market}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => addItem(item.code)}
+                      className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-800 truncate">{searchKeyword}</p>
-                        <p className="text-xs text-gray-500">{searchKeyword}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          addItem(searchKeyword)
-                          setSearchKeyword('')
-                        }}
-                        className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
-                      >
-                        添加
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="搜索基金名称或代码..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                
-                <div className="mt-3 max-h-60 overflow-y-auto space-y-2">
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 size={20} className="animate-spin text-gray-500" />
-                    </div>
-                  ) : filteredItems.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
-                      {availableItems.length === 0 ? '所有基金已添加' : '未找到匹配的基金'}
-                    </p>
-                  ) : (
-                    filteredItems.map(fund => (
-                      <div
-                        key={fund.code}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-gray-800 truncate">{fund.name}</p>
-                          <p className="text-xs text-gray-500">{fund.code} · {fund.type}</p>
-                        </div>
-                        <button
-                          onClick={() => addItem(fund.code)}
-                          className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
-                        >
-                          添加
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
+                      添加
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

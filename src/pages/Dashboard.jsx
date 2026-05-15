@@ -38,11 +38,15 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           validFunds = validFunds.map(fund => ({
             ...fund,
             holdings: fund.holdings.map(holding => {
-              const cleanCode = holding.code ? holding.code.replace(/^[01]\./, '') : ''
-              const realData = stockData[cleanCode]
-              console.log(`Matching holding: code=${holding.code}, cleanCode=${cleanCode}, realData=${realData ? 'found' : 'not found'}, current name=${holding.name}`)
+              let realData = null
+              if (holding.code) {
+                realData = stockData[holding.code]
+                if (!realData) {
+                  const cleanCode = holding.code.replace(/^[01]\./, '')
+                  realData = stockData[cleanCode]
+                }
+              }
               if (realData) {
-                console.log(`  -> updating to name=${realData.name}, change=${realData.changePercent}`)
                 return {
                   ...holding,
                   name: realData.name || holding.name,
