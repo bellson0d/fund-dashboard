@@ -210,11 +210,17 @@ async function fetchAShareData(secids) {
       if (data && data.data && data.data.diff) {
         data.data.diff.forEach(item => {
           const code = item.f12
-          results[code] = {
-            code,
-            name: item.f14,
-            price: parseFloat(item.f2) || 0,
-            changePercent: parseFloat(item.f3) || 0
+          const originalSecid = secids.find(secid => {
+            const cleanSecId = secid.replace(/^[0-9]+\./, '')
+            return cleanSecId === code
+          })
+          if (originalSecid) {
+            results[originalSecid] = {
+              code: originalSecid,
+              name: item.f14,
+              price: parseFloat(item.f2) || 0,
+              changePercent: parseFloat(item.f3) || 0
+            }
           }
         })
       }
