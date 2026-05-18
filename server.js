@@ -27,19 +27,19 @@ app.use('/api/fundgz', createProxyMiddleware({
 app.use('/api/pingzhong', createProxyMiddleware({
   target: 'https://fund.eastmoney.com',
   changeOrigin: true,
-  pathRewrite: (path) => path.replace(/^\/api\/pingzhong/, '/pingzhongdata')
+  pathRewrite: (path) => '/pingzhongdata' + path
 }));
 
 app.use('/api/stock', createProxyMiddleware({
   target: 'http://push2.eastmoney.com',
   changeOrigin: true,
-  pathRewrite: (path) => path.replace(/^\/api\/stock/, '/api/qt/stock/get')
+  pathRewrite: (path) => '/api/qt/stock/get' + path
 }));
 
 app.use('/api/fundlist', createProxyMiddleware({
   target: 'http://fund.eastmoney.com',
   changeOrigin: true,
-  pathRewrite: (path) => path.replace(/^\/api\/fundlist/, '/js/fundcode_search.js')
+  pathRewrite: (path) => '/js/fundcode_search.js'
 }));
 
 if (isProduction) {
