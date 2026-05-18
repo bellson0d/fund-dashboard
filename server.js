@@ -3,6 +3,7 @@ import pkg from 'stock-api';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const { stocks } = pkg;
 
@@ -15,6 +16,31 @@ const PORT = isProduction ? 3000 : 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// API代理配置
+app.use('/api/fundgz', createProxyMiddleware({
+  target: 'http://fundgz.1234567.com.cn',
+  changeOrigin: true,
+  pathRewrite: (path) => '/js' + path
+}));
+
+app.use('/api/pingzhong', createProxyMiddleware({
+  target: 'https://fund.eastmoney.com',
+  changeOrigin: true,
+  pathRewrite: (path) => path.replace(/^\/api\/pingzhong/, '/pingzhongdata')
+}));
+
+app.use('/api/stock', createProxyMiddleware({
+  target: 'http://push2.eastmoney.com',
+  changeOrigin: true,
+  pathRewrite: (path) => path.replace(/^\/api\/stock/, '/api/qt/stock/get')
+}));
+
+app.use('/api/fundlist', createProxyMiddleware({
+  target: 'http://fund.eastmoney.com',
+  changeOrigin: true,
+  pathRewrite: (path) => path.replace(/^\/api\/fundlist/, '/js/fundcode_search.js')
+}));
 
 if (isProduction) {
   app.use('/fund-dashboard', express.static(path.join(__dirname, 'dist'), {
