@@ -17,7 +17,15 @@ app.use(cors());
 app.use(express.json());
 
 if (isProduction) {
-  app.use(express.static(path.join(__dirname, 'dist')));
+  app.use('/fund-dashboard', express.static(path.join(__dirname, 'dist'), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      }
+    }
+  }));
 }
 
 app.post('/api/search-stocks', async (req, res) => {
@@ -69,7 +77,10 @@ app.post('/api/search-stocks', async (req, res) => {
 });
 
 if (isProduction) {
-  app.get('/{*splat}', (req, res) => {
+  app.get('/{*splat}', (req, res, next) => {
+    if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|ico|png|jpg|svg)$/)) {
+      return next();
+    }
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
