@@ -1,13 +1,14 @@
 {
   "name": "fund-dashboard",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node server.js",
+    "dev:server": "node server.js",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port 4173",
+    "start": "NODE_ENV=production node server.js",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {

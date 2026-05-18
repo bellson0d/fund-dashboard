@@ -1,14 +1,24 @@
 import express from 'express';
 import pkg from 'stock-api';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const { stocks } = pkg;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const PORT = 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+const PORT = isProduction ? 3000 : 3001;
 
 app.use(cors());
 app.use(express.json());
+
+if (isProduction) {
+  app.use(express.static(path.join(__dirname, 'dist')));
+}
 
 app.post('/api/search-stocks', async (req, res) => {
   const { query } = req.body;
@@ -58,6 +68,13 @@ app.post('/api/search-stocks', async (req, res) => {
   }
 });
 
+if (isProduction) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`Stock search API server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
 });
