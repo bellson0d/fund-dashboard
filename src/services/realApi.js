@@ -50,9 +50,9 @@ async function fetchPingzhongData(fundCode, timestamp) {
     const url = `/api/pingzhong/${fundCode}.js?v=${timestamp}`
     const response = await fetch(url)
     const text = await response.text()
-    
+
     const holdings = []
-    
+
     const stockCodesMatch = text.match(/stockCodes\s*=\s*\[([^\]]+)\]/)
     const stockCodesNewMatch = text.match(/stockCodesNew\s*=\s*\[([^\]]+)\]/)
     const zqCodesMatch = text.match(/zqCodes\s*=\s*["']([^"']+)["']/)
@@ -61,6 +61,9 @@ async function fetchPingzhongData(fundCode, timestamp) {
     const stockRatiosMatch = text.match(/stockRatios\s*=\s*["']([^"']+)["']/)
     const zqNamesMatch = text.match(/zqNames\s*=\s*["']([^"']+)["']/)
     const zqRatiosMatch = text.match(/zqRatios\s*=\s*["']([^"']+)["']/)
+
+    // 收集所有需要查询的股票代码（用于后续 stock-sdk 补全名称/涨跌）
+    const codesToLookup = []
 
     const stockNames = stockNamesMatch ? stockNamesMatch[1].split(',') : []
     const stockRatios = stockRatiosMatch ? stockRatiosMatch[1].split(',').map(r => parseFloat(r)) : []
@@ -72,65 +75,84 @@ async function fetchPingzhongData(fundCode, timestamp) {
         .replace(/["'\s]/g, '')
         .split(',')
         .filter(Boolean)
-      
+
       codes.slice(0, 10).forEach((code, index) => {
         holdings.push({
-          code: code,
-          name: stockNames[index] || `股票${index + 1}`,
+          code,
+          name: stockNames[index] || '',
           ratio: stockRatios[index] || 0,
           change: 0,
           type: 'stock'
         })
+        codesToLookup.push(code)
       })
     } else if (stockCodesMatch) {
       const codes = stockCodesMatch[1]
         .replace(/["'\s]/g, '')
         .split(',')
         .filter(Boolean)
-      
+
       codes.slice(0, 10).forEach((code, index) => {
         const cleanCode = code.replace(/[01]$/, '')
+        const fullCode = getMarketPrefix(cleanCode) + cleanCode
         holdings.push({
-          code: getMarketPrefix(cleanCode) + cleanCode,
-          name: stockNames[index] || `股票${index + 1}`,
+          code: fullCode,
+          name: stockNames[index] || '',
           ratio: stockRatios[index] || 0,
           change: 0,
           type: 'stock'
         })
+        codesToLookup.push(fullCode)
+      })
+    }
+
+    // 债券持仓
+    const addBonds = (codes, names, ratios) => {
+      codes.slice(0, Math.min(10 - holdings.length, codes.length)).forEach((code, index) => {
+        holdings.push({
+          code,
+          name: names[index] || '',
+          ratio: ratios[index] || 0,
+          change: 0,
+          type: 'bond'
+        })
+        codesToLookup.push(code)
       })
     }
 
     if (zqCodesNewMatch && holdings.length < 10) {
-      const zqCodes = zqCodesNewMatch[1]
-        .replace(/["'\s]/g, '')
-        .split(',')
-        .filter(Boolean)
-      
-      zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
-        holdings.push({
-          code: code,
-          name: zqNames[index] || `债券${index + 1}`,
-          ratio: zqRatios[index] || 0,
-          change: 0,
-          type: 'bond'
-        })
-      })
+      addBonds(
+        zqCodesNewMatch[1].replace(/["'\s]/g, '').split(',').filter(Boolean),
+        zqNames, zqRatios
+      )
     } else if (zqCodesMatch && holdings.length < 10) {
-      const zqCodes = zqCodesMatch[1]
-        .replace(/["'\s]/g, '')
-        .split(',')
-        .filter(Boolean)
-      
-      zqCodes.slice(0, Math.min(10 - holdings.length, zqCodes.length)).forEach((code, index) => {
-        holdings.push({
-          code: getMarketPrefix(code) + code,
-          name: zqNames[index] || `债券${index + 1}`,
-          ratio: zqRatios[index] || 0,
-          change: 0,
-          type: 'bond'
-        })
-      })
+      const zqs = zqCodesMatch[1].replace(/["'\s]/g, '').split(',').filter(Boolean)
+      addBonds(
+        zqs.map(c => getMarketPrefix(c) + c),
+        zqNames, zqRatios
+      )
     }
+
+    // 如果 stockNames 缺失（东方财富 API 不返回名称），通过 stock-sdk 补全
+    if (stockNames.length === 0 && codesToLookup.length > 0) {
+      try {
+        const stockData = await batchFetchStockData(codesToLookup)
+        holdings.forEach(holding => {
+          const info = stockData[holding.code]
+          if (info) {
+            holding.name = info.name || holding.name
+            holding.change = info.changePercent || 0
+          }
+        })
+      } catch (e) {
+        console.error('Failed to enrich holdings via stock-sdk:', e.message)
+      }
+    }
+
+    // 兜底：stock-sdk 也没查到且没有名称的，用股票代码代替
+    holdings.forEach((h, i) => {
+      if (!h.name) h.name = h.code
+    })
 
     return holdings
   } catch (error) {

@@ -1,8 +1,10 @@
-// 股票看板 - 展示已添加股票的实时价格和涨跌幅
+// 股票看板 - 展示已添加股票的实时价格和涨跌幅，支持 iOS 风格拖拽排序
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import StockCard from '../components/StockCard'
 import { batchFetchStockData } from '../services/realApi'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useDragSort } from '../hooks/useDragSort'
 import { defaultStockCodes } from '../data/stockData'
 
 function Stock({ searchQuery, refreshKey }) {
@@ -54,6 +56,13 @@ function Stock({ searchQuery, refreshKey }) {
     loadStockData()
   }, [loadStockData, refreshKey])
 
+  const { isDragging, dragIndex, displayItems, ghostPos, handleMouseDown, getItemOriginalIndex } = useDragSort(stockCodes, setStockCodes)
+
+  const stockMap = {}
+  stocks.forEach(s => { stockMap[s.code] = s })
+
+  const draggedStock = isDragging ? stockMap[stockCodes[dragIndex]] : null
+
   return (
     <div>
       {apiError && (
@@ -61,7 +70,7 @@ function Stock({ searchQuery, refreshKey }) {
           获取股票数据失败，请稍后重试
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div id="drag-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {stocks.length === 0 ? (
           <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-10">
             <p className="text-gray-500">
@@ -69,11 +78,60 @@ function Stock({ searchQuery, refreshKey }) {
             </p>
           </div>
         ) : (
-          stocks.map(stock => (
-            <StockCard key={stock.code} stock={stock} />
-          ))
+          displayItems.map((item, index) => {
+            if (item._placeholder) {
+              return (
+                <div
+                  key="_ph"
+                  className="rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/40 transition-all duration-300"
+                  style={{ minHeight: ghostPos ? `${ghostPos.h}px` : '100px' }}
+                />
+              )
+            }
+
+            const stock = stockMap[item]
+            if (!stock) return null
+            const origIndex = getItemOriginalIndex(item)
+
+            return (
+              <div
+                key={stock.code}
+                data-drag-index={origIndex}
+                onMouseDown={(e) => handleMouseDown(e, origIndex)}
+                style={{
+                  transition: 'transform 0.3s ease, opacity 0.3s ease',
+                  cursor: isDragging ? 'grabbing' : 'grab',
+                }}
+              >
+                <StockCard stock={stock} />
+              </div>
+            )
+          })
         )}
       </div>
+
+      {ghostPos && draggedStock &&
+        createPortal(
+          <div
+            id="drag-ghost"
+            style={{
+              position: 'fixed',
+              left: ghostPos.x,
+              top: ghostPos.y,
+              width: ghostPos.w,
+              height: ghostPos.h,
+              zIndex: 9999,
+              opacity: 0.9,
+              transform: 'scale(1.03)',
+              pointerEvents: 'none',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+              borderRadius: '12px',
+            }}
+          >
+            <StockCard stock={draggedStock} />
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
