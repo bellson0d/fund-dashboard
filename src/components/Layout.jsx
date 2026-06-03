@@ -1,3 +1,4 @@
+// 全局布局 - 顶部 Header + 内容区
 import { useLocation } from 'react-router-dom'
 import Header from './Header'
 
@@ -7,7 +8,7 @@ function Layout({ children, searchQuery, onSearchChange, onRefresh, lastSyncTime
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header 
+      <Header
         searchQuery={searchQuery}
         onSearchChange={onSearchChange}
         onRefresh={onRefresh}

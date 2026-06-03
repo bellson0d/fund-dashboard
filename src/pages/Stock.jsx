@@ -1,3 +1,4 @@
+// 股票看板 - 展示已添加股票的实时价格和涨跌幅
 import { useState, useEffect, useCallback } from 'react'
 import StockCard from '../components/StockCard'
 import { batchFetchStockData } from '../services/realApi'
@@ -11,7 +12,7 @@ function Stock({ searchQuery, refreshKey }) {
 
   const loadStockData = useCallback(async () => {
     setApiError(false)
-    
+
     if (stockCodes.length === 0) {
       setStocks([])
       return
@@ -19,7 +20,7 @@ function Stock({ searchQuery, refreshKey }) {
 
     try {
       const stockData = await batchFetchStockData(stockCodes)
-      
+
       const validStocks = stockCodes.map(code => {
         const data = stockData[code]
         if (data) {
@@ -30,17 +31,12 @@ function Stock({ searchQuery, refreshKey }) {
             change: data.changePercent || 0
           }
         }
-        return {
-          code,
-          name: code,
-          price: 0,
-          change: 0
-        }
+        return { code, name: code, price: 0, change: 0 }
       })
 
       if (searchQuery) {
         const lowerQuery = searchQuery.toLowerCase()
-        const filtered = validStocks.filter(stock => 
+        const filtered = validStocks.filter(stock =>
           stock.name.toLowerCase().includes(lowerQuery) ||
           stock.code.includes(searchQuery)
         )

@@ -1,3 +1,4 @@
+// 应用入口 - 路由定义 / 全局状态 / 定时刷新
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
@@ -26,10 +27,12 @@ function App() {
     setSearchQuery(value)
   }
 
+  // 路由切换时清空搜索
   useEffect(() => {
     setSearchQuery('')
   }, [location.pathname])
 
+  // 启动时立即刷新 + 每分钟自动刷新
   useEffect(() => {
     handleRefresh()
     const interval = setInterval(() => {
@@ -40,8 +43,8 @@ function App() {
   }, [])
 
   return (
-    <Layout 
-      searchQuery={searchQuery} 
+    <Layout
+      searchQuery={searchQuery}
       onSearchChange={handleSearchChange}
       onRefresh={handleRefresh}
       lastSyncTime={lastSyncTime}

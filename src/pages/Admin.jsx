@@ -1,10 +1,74 @@
+// 数据管理页 - 添加/删除/排序基金和股票
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, X, ChevronUp, ChevronDown, Save, RefreshCw, Loader2 } from 'lucide-react'
+import { StockSDK } from 'stock-sdk'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 import { defaultStockCodes } from '../data/stockData'
 import { getFundList, searchFunds, getCacheStatus as getFundCacheStatus, clearFundListCache } from '../services/fundListService'
 import { searchStocks as searchStocksAPI } from '../services/stockSearchService'
+
+const stockSDK = new StockSDK({ timeout: 15000 })
+
+// 补全缺失的股票名称 - 切换到股票 tab 时自动调用
+// 将内部格式 (0.xxx / 1.xxx / 116.xxx / 105.xxx) 转为 stock-sdk 格式批量查询
+async function fetchMissingStockNames(codes) {
+  const aShareSdk = []
+  const aShareOrig = []
+  const hkCodes = []
+  const hkOrig = []
+  const usCodes = []
+  const usOrig = []
+
+  codes.forEach(code => {
+    if (code.startsWith('116.')) {
+      hkCodes.push(code.replace('116.', ''))
+      hkOrig.push(code)
+    } else if (code.startsWith('105.')) {
+      usCodes.push(code.replace('105.', ''))
+      usOrig.push(code)
+    } else {
+      const clean = code.replace(/^[01]\./, '')
+      aShareSdk.push((clean.startsWith('6') ? 'sh' : 'sz') + clean)
+      aShareOrig.push(code)
+    }
+  })
+
+  const result = {}
+
+  if (aShareSdk.length > 0) {
+    try {
+      const quotes = await stockSDK.getSimpleQuotes(aShareSdk)
+      quotes.forEach((q, i) => {
+        if (q) {
+          result[aShareOrig[i]] = {
+            code: aShareOrig[i],
+            name: q.name || aShareOrig[i],
+            market: aShareOrig[i].startsWith('1.') ? 'a-sh' : 'a-sz'
+          }
+        }
+      })
+    } catch (e) { console.error('fetch names A-share:', e.message) }
+  }
+  if (hkCodes.length > 0) {
+    try {
+      const quotes = await stockSDK.getHKQuotes(hkCodes)
+      quotes.forEach((q, i) => {
+        if (q) result[hkOrig[i]] = { code: hkOrig[i], name: q.name || hkOrig[i], market: 'hk' }
+      })
+    } catch (e) { console.error('fetch names HK:', e.message) }
+  }
+  if (usCodes.length > 0) {
+    try {
+      const quotes = await stockSDK.getUSQuotes(usCodes)
+      quotes.forEach((q, i) => {
+        if (q) result[usOrig[i]] = { code: usOrig[i], name: q.name || usOrig[i], market: 'us' }
+      })
+    } catch (e) { console.error('fetch names US:', e.message) }
+  }
+
+  return result
+}
 
 function Admin() {
   const [adminTab, setAdminTab] = useState('fund')
@@ -27,6 +91,20 @@ function Admin() {
   useEffect(() => {
     loadFundList()
   }, [])
+
+  // 切换到股票 tab 时，补全缺失的股票名称
+  useEffect(() => {
+    if (adminTab !== 'stock') return
+    const missing = stockCodes.filter(code => !stockInfoCache[code])
+    if (missing.length === 0) return
+
+    let cancelled = false
+    fetchMissingStockNames(missing).then(newInfo => {
+      if (cancelled) return
+      setStockInfoCache(prev => ({ ...prev, ...newInfo }))
+    })
+    return () => { cancelled = true }
+  }, [adminTab, stockCodes])
 
   useEffect(() => {
     setFundCacheStatus(getFundCacheStatus())

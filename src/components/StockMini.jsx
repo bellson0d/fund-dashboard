@@ -1,3 +1,4 @@
+// 持仓小标签 - 基金卡片内显示单支持仓股票/债券
 function StockMini({ name, change, type }) {
   const isUp = change > 0
   const isDown = change < 0
@@ -8,7 +9,6 @@ function StockMini({ name, change, type }) {
         <span className="text-gray-700 truncate block">
           {name}
           {type === 'bond' && <span className="text-blue-400 ml-0.5">债</span>}
-          {type === 'us_stock' && <span className="text-purple-400 ml-0.5">美</span>}
         </span>
       </div>
       <span className={`font-medium w-10 text-left ml-1 ${

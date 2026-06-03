@@ -1,18 +1,19 @@
+// 基金列表服务
+// - 从东方财富获取全量基金列表
+// - localStorage 缓存 24 小时，减少 API 请求
 const CACHE_KEY = 'fund_list_cache'
-const CACHE_TTL = 24 * 60 * 60 * 1000
+const CACHE_TTL = 24 * 60 * 60 * 1000 // 24小时
 
 export async function getFundList(forceRefresh = false) {
   if (!forceRefresh) {
     const cached = getCachedFundList()
-    if (cached) {
-      return cached
-    }
+    if (cached) return cached
   }
 
   try {
     const response = await fetch('/api/fundlist')
     const text = await response.text()
-    
+
     const match = text.match(/var r = (\[.*\])/)
     if (match) {
       const data = JSON.parse(match[1])
@@ -21,7 +22,7 @@ export async function getFundList(forceRefresh = false) {
         name: item[2],
         type: item[3]
       }))
-      
+
       saveToCache(fundList)
       return fundList
     }
@@ -58,16 +59,18 @@ function saveToCache(funds) {
   }
 }
 
+// 在已加载的基金列表中本地模糊搜索
 export function searchFunds(query, fundList) {
   if (!query.trim()) return []
-  
+
   const lowerQuery = query.toLowerCase()
-  return fundList.filter(fund => 
+  return fundList.filter(fund =>
     fund.code.toLowerCase().includes(lowerQuery) ||
     fund.name.toLowerCase().includes(lowerQuery)
   ).slice(0, 20)
 }
 
+// 缓存状态查询（显示在 Admin 页面）
 export function getCacheStatus() {
   try {
     const cached = localStorage.getItem(CACHE_KEY)

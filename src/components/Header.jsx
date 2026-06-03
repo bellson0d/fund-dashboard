@@ -1,17 +1,18 @@
+// 顶部导航栏 - 路由切换 / 搜索 / 数据源切换 / 刷新
 import { useState } from 'react'
 import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, Database, Server } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle, activeTab }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const navigate = useNavigate()
-  const location = useLocation()
 
   const formatTime = (date) => {
     if (!date) return '--:--'
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   }
 
+  // 收起状态 - 只显示展开按钮
   if (isCollapsed) {
     return (
       <button
@@ -89,8 +90,8 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
         <button
           onClick={onApiToggle}
           className={`p-1 transition-colors flex items-center gap-1 ${
-            useRealApi 
-              ? 'text-green-300 hover:text-green-200' 
+            useRealApi
+              ? 'text-green-300 hover:text-green-200'
               : 'text-white/50 hover:text-white'
           }`}
           title={useRealApi ? '使用模拟数据' : '使用真实API'}

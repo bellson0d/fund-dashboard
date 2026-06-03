@@ -1,11 +1,12 @@
+// 股票卡片 - 显示名称/代码/价格/涨跌幅
 function StockCard({ stock }) {
   const isUp = stock.change > 0
   const isDown = stock.change < 0
 
-  const cardClass = isUp 
-    ? 'card-up' 
-    : isDown 
-      ? 'card-down' 
+  const cardClass = isUp
+    ? 'card-up'
+    : isDown
+      ? 'card-down'
       : 'card-neutral'
 
   return (

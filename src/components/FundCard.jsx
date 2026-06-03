@@ -1,3 +1,4 @@
+// 基金卡片 - 显示净值/涨跌幅/前十大持仓
 import StockMini from './StockMini'
 
 function FundCard({ fund }) {
@@ -5,7 +6,8 @@ function FundCard({ fund }) {
   const downCount = fund.holdings.filter(h => h.change < 0).length
   const isUp = fund.change > 0
   const isDown = fund.change < 0
-  
+
+  // 持仓涨跌决定卡片色调
   let cardClass
   if (upCount > downCount) {
     cardClass = 'card-up'
@@ -31,7 +33,7 @@ function FundCard({ fund }) {
           </p>
         </div>
       </div>
-      
+
       <div className="border-t border-gray-200/50 pt-0.5 mt-0.5 flex-1">
         <p className="text-xs text-gray-500 mb-0.25">持仓</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">

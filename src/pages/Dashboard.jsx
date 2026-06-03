@@ -1,3 +1,4 @@
+// 基金看板 - 展示已添加基金的净值和持仓
 import { useState, useEffect, useCallback } from 'react'
 import FundCard from '../components/FundCard'
 import { fetchFundData } from '../services/api'
@@ -12,15 +13,16 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
 
   const loadFundData = useCallback(async () => {
     setApiError(false)
-    
+
     const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
-    
+
     const results = await Promise.all(
       fundCodes.map(code => fetchFn(code))
     )
-    
+
     let validFunds = results.filter(Boolean)
-    
+
+    // 真实模式下，获取基金持仓股票的实时涨跌
     if (useRealApi && validFunds.length > 0) {
       const secids = []
       validFunds.forEach(fund => {
@@ -30,11 +32,11 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           }
         })
       })
-      
+
       if (secids.length > 0) {
         try {
           const stockData = await batchFetchStockData(secids)
-          
+
           validFunds = validFunds.map(fund => ({
             ...fund,
             holdings: fund.holdings.map(holding => {
@@ -62,7 +64,8 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
         }
       }
     }
-    
+
+    // 真实 API 失败时降级到模拟数据
     if (useRealApi && validFunds.length === 0) {
       setApiError(true)
       const mockResults = await Promise.all(
@@ -70,10 +73,10 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
       )
       validFunds = mockResults.filter(Boolean)
     }
-    
+
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase()
-      const filtered = validFunds.filter(fund => 
+      const filtered = validFunds.filter(fund =>
         fund.name.toLowerCase().includes(lowerQuery) ||
         fund.code.includes(searchQuery)
       )

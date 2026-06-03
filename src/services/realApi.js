@@ -1,3 +1,10 @@
+// 真实数据服务
+// - 基金：通过服务端代理获取天天基金/东方财富数据
+// - 股票：浏览器端直调 stock-sdk 获取 A股/港股/美股行情
+import { StockSDK } from 'stock-sdk'
+
+const stockSDK = new StockSDK({ timeout: 15000 })
+
 export async function fetchFundRealData(fundCode) {
   try {
     const timestamp = Date.now()
@@ -67,13 +74,12 @@ async function fetchPingzhongData(fundCode, timestamp) {
         .filter(Boolean)
       
       codes.slice(0, 10).forEach((code, index) => {
-        const isUsStock = isUsStockCode(code)
         holdings.push({
           code: code,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
           change: 0,
-          type: isUsStock ? 'us_stock' : 'stock'
+          type: 'stock'
         })
       })
     } else if (stockCodesMatch) {
@@ -84,13 +90,12 @@ async function fetchPingzhongData(fundCode, timestamp) {
       
       codes.slice(0, 10).forEach((code, index) => {
         const cleanCode = code.replace(/[01]$/, '')
-        const isUsStock = isUsStockCode(cleanCode)
         holdings.push({
-          code: isUsStock ? cleanCode : getMarketPrefix(cleanCode) + cleanCode,
+          code: getMarketPrefix(cleanCode) + cleanCode,
           name: stockNames[index] || `股票${index + 1}`,
           ratio: stockRatios[index] || 0,
           change: 0,
-          type: isUsStock ? 'us_stock' : 'stock'
+          type: 'stock'
         })
       })
     }
@@ -134,181 +139,6 @@ async function fetchPingzhongData(fundCode, timestamp) {
   return []
 }
 
-function isUsStockCode(code) {
-  const result = /^[0-9]+\.[A-Za-z]+$/.test(code)
-  return result
-}
-
-function extractUsStockSymbol(code) {
-  const match = code.match(/^[0-9]+\.([A-Za-z]+)$/)
-  return match ? match[1] : code
-}
-
-export async function batchFetchStockData(secids) {
-  if (!secids || secids.length === 0) return {}
-
-  const results = {}
-  
-  const aShareSecids = []
-  const usStockCodes = []
-
-  secids.forEach(secid => {
-    const cleanCode = secid.replace(/^[01]\./, '')
-    const isUs = isUsStockCode(cleanCode)
-    console.log(`Checking code: ${secid} -> clean=${cleanCode}, isUsStock=${isUs}`)
-    if (isUs) {
-      usStockCodes.push(cleanCode)
-    } else {
-      aShareSecids.push(secid)
-    }
-  })
-
-  console.log(`batchFetchStockData: aShareSecids=${aShareSecids.length}, usStockCodes=${usStockCodes.length}`)
-  console.log(`usStockCodes:`, usStockCodes)
-
-  if (aShareSecids.length > 0) {
-    const aShareData = await fetchAShareData(aShareSecids)
-    Object.assign(results, aShareData)
-  }
-
-  if (usStockCodes.length > 0) {
-    console.log('Calling fetchUsStockData...')
-    const usStockData = await fetchUsStockData(usStockCodes)
-    Object.assign(results, usStockData)
-  }
-
-  return results
-}
-
-async function fetchAShareData(secids) {
-  const results = {}
-  const batchSize = 20
-  const batches = []
-
-  for (let i = 0; i < secids.length; i += batchSize) {
-    batches.push(secids.slice(i, i + batchSize))
-  }
-
-  for (const batch of batches) {
-    const secidsStr = batch.join(',')
-    const timestamp = Date.now()
-    const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f2,f3,f12,f14&secids=${secidsStr}&_=${timestamp}`
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Referer': 'https://push2.eastmoney.com/',
-          'Origin': 'https://push2.eastmoney.com',
-        }
-      })
-      if (!response.ok) {
-        console.error(`A-share batch request failed with status ${response.status}`)
-        continue
-      }
-      const data = await response.json()
-      
-      if (data && data.data && data.data.diff) {
-        data.data.diff.forEach(item => {
-          const code = item.f12
-          const originalSecid = secids.find(secid => {
-            const cleanSecId = secid.replace(/^[0-9]+\./, '')
-            return cleanSecId === code
-          })
-          if (originalSecid) {
-            results[originalSecid] = {
-              code: originalSecid,
-              name: item.f14,
-              price: parseFloat(item.f2) || 0,
-              changePercent: parseFloat(item.f3) || 0
-            }
-          }
-        })
-      }
-    } catch (error) {
-      console.error('Failed to fetch A-share batch stock data:', error)
-    }
-  }
-
-  return results
-}
-
-
-async function fetchUsStockData(codes) {
-  const results = {}
-  const batchSize = 50
-  const batches = []
-
-  for (let i = 0; i < codes.length; i += batchSize) {
-    batches.push(codes.slice(i, i + batchSize))
-  }
-
-  for (const batch of batches) {
-    const symbols = batch.map(code => 's_us' + extractUsStockSymbol(code))
-    const url = `http://qt.gtimg.cn/q=${symbols.join(',')}`
-    
-    try {
-      const response = await fetch(url)
-      const arrayBuffer = await response.arrayBuffer()
-      const decoder = new TextDecoder('GBK')
-      const text = decoder.decode(arrayBuffer)
-      
-      const regex = /v_s_us([A-Za-z]+)="([^"]+)"/g
-      let match
-      while ((match = regex.exec(text)) !== null) {
-        const symbol = match[1]
-        const data = match[2].split('~')
-        if (data.length >= 6) {
-          const name = data[1] || symbol
-          const changePercent = parseFloat(data[5]) || 0
-          const price = parseFloat(data[3]) || 0
-          
-          console.log(`Parsed US stock: ${symbol} -> name=${name}, changePercent=${changePercent}%`)
-          
-          batch.forEach(code => {
-            const codeSymbol = extractUsStockSymbol(code)
-            if (codeSymbol === symbol) {
-              results[code] = {
-                code,
-                name,
-                price,
-                changePercent
-              }
-            }
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch US stock data:', error)
-    }
-  }
-
-  console.log('US stock results:', results)
-  return results
-}
-
-export async function fetchStockRealData(stockCode) {
-  try {
-    const market = getMarketPrefix(stockCode)
-    const url = `/api/stock?secid=${market}${stockCode}&fields=f57,f58,f116,f107,f108,f117`
-    
-    const response = await fetch(url)
-    const data = await response.json()
-    
-    if (data && data.data) {
-      return {
-        code: stockCode,
-        name: data.data.f58 || stockCode,
-        price: parseFloat(data.data.f116) || 0,
-        change: parseFloat(data.data.f107) || 0,
-        changePercent: parseFloat(data.data.f108) || 0
-      }
-    }
-  } catch (error) {
-    console.error('Failed to fetch stock data:', error)
-  }
-  return null
-}
-
 function getMarketPrefix(code) {
   if (!code || typeof code !== 'string') return '0.'
   
@@ -322,4 +152,98 @@ function getMarketPrefix(code) {
   if (cleanCode.startsWith('12')) return '0.'
   if (cleanCode.startsWith('BJ') || cleanCode.startsWith('bj')) return '1.'
   return '0.'
+}
+
+// 通过 stock-sdk 批量获取股票行情（A股 / 港股 / 美股）
+export async function batchFetchStockData(codes) {
+  if (!codes || codes.length === 0) return {}
+
+  const result = {}
+
+  // 按市场分组，转换内部格式 -> stock-sdk 格式
+  const aShareSdkCodes = []   // ['sz000858', 'sh600519']
+  const aShareOrigCodes = []  // ['0.000858', '1.600519']
+  const hkCodes = []          // ['00700']
+  const hkOrigCodes = []      // ['116.00700']
+  const usCodes = []          // ['AAPL']
+  const usOrigCodes = []      // ['105.AAPL']
+
+  codes.forEach(code => {
+    if (code.startsWith('116.')) {
+      hkCodes.push(code.replace('116.', ''))
+      hkOrigCodes.push(code)
+    } else if (code.startsWith('105.')) {
+      usCodes.push(code.replace('105.', ''))
+      usOrigCodes.push(code)
+    } else {
+      const clean = code.replace(/^[01]\./, '')
+      let sdkCode
+      if (clean.startsWith('6')) {
+        sdkCode = `sh${clean}`
+      } else {
+        sdkCode = `sz${clean}`
+      }
+      aShareSdkCodes.push(sdkCode)
+      aShareOrigCodes.push(code)
+    }
+  })
+
+  // A股批量行情
+  if (aShareSdkCodes.length > 0) {
+    try {
+      const quotes = await stockSDK.getSimpleQuotes(aShareSdkCodes)
+      quotes.forEach((q, i) => {
+        if (q && q.code) {
+          result[aShareOrigCodes[i]] = {
+            code: aShareOrigCodes[i],
+            name: q.name || aShareOrigCodes[i],
+            price: q.price || 0,
+            changePercent: q.changePercent || 0
+          }
+        }
+      })
+    } catch (e) {
+      console.error('A-share batch failed:', e.message)
+    }
+  }
+
+  // 港股批量行情
+  if (hkCodes.length > 0) {
+    try {
+      const quotes = await stockSDK.getHKQuotes(hkCodes)
+      quotes.forEach((q, i) => {
+        if (q && q.code) {
+          result[hkOrigCodes[i]] = {
+            code: hkOrigCodes[i],
+            name: q.name || hkOrigCodes[i],
+            price: q.price || 0,
+            changePercent: q.changePercent || 0
+          }
+        }
+      })
+    } catch (e) {
+      console.error('HK batch failed:', e.message)
+    }
+  }
+
+  // 美股批量行情
+  if (usCodes.length > 0) {
+    try {
+      const quotes = await stockSDK.getUSQuotes(usCodes)
+      quotes.forEach((q, i) => {
+        if (q && q.code) {
+          result[usOrigCodes[i]] = {
+            code: usOrigCodes[i],
+            name: q.name || usOrigCodes[i],
+            price: q.price || 0,
+            changePercent: q.changePercent || 0
+          }
+        }
+      })
+    } catch (e) {
+      console.error('US batch failed:', e.message)
+    }
+  }
+
+  return result
 }

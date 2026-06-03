@@ -1,3 +1,5 @@
+// 自定义 Hook - 将状态持久化到 localStorage
+// 用法同 useState，但值会自动同步到 localStorage
 import { useState, useEffect } from 'react'
 
 export function useLocalStorage(key, initialValue) {

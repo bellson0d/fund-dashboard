@@ -21,11 +21,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/pingzhong/, '/pingzhongdata'),
       },
-      '/api/stock': {
-        target: 'http://push2.eastmoney.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/stock/, '/api/qt/stock/get'),
-      },
       '/api/fundlist': {
         target: 'http://fund.eastmoney.com',
         changeOrigin: true,

@@ -1,3 +1,4 @@
+// 模拟基金数据 - 当真实API不可用时作为降级数据展示
 export const mockFunds = [
   {
     code: '001595',
@@ -289,6 +290,7 @@ export const mockFunds = [
   },
 ]
 
+// 默认显示的基金代码列表
 export const defaultFundCodes = [
   '024239', '018147', '017731', '021842',
   '014002', '011730', '005661', '008809',
