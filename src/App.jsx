@@ -1,5 +1,5 @@
-// 应用入口 - 路由定义 / 全局状态 / 定时刷新
-import { useState, useEffect } from 'react'
+// 应用入口 - 路由定义 / 全局状态 / 定时刷新（页面不可见时自动暂停）
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -12,6 +12,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [lastSyncTime, setLastSyncTime] = useState(null)
   const [useRealApi, setUseRealApi] = useState(true)
+  const intervalRef = useRef(null)
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
@@ -23,29 +24,51 @@ function App() {
     handleRefresh()
   }
 
-  const handleSearchChange = (value) => {
-    setSearchQuery(value)
-  }
-
   // 路由切换时清空搜索
   useEffect(() => {
     setSearchQuery('')
   }, [location.pathname])
 
-  // 启动时立即刷新 + 每分钟自动刷新
+  // 页面可见时才轮询，后台标签页自动暂停，切回时立即刷新
   useEffect(() => {
-    handleRefresh()
-    const interval = setInterval(() => {
+    const startPolling = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
       handleRefresh()
-    }, 60000)
+      intervalRef.current = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          handleRefresh()
+        }
+      }, 60000)
+    }
 
-    return () => clearInterval(interval)
+    const stopPolling = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
 
   return (
     <Layout
       searchQuery={searchQuery}
-      onSearchChange={handleSearchChange}
+      onSearchChange={setSearchQuery}
       onRefresh={handleRefresh}
       lastSyncTime={lastSyncTime}
       useRealApi={useRealApi}

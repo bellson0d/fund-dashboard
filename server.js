@@ -15,7 +15,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 const PORT = isProduction ? 3000 : 3001;
 
 app.use(cors());
-app.use(express.json());
 
 // 天天基金实时估值 API
 app.use('/api/fundgz', createProxyMiddleware({
@@ -38,14 +37,20 @@ app.use('/api/fundlist', createProxyMiddleware({
   pathRewrite: (path) => '/js/fundcode_search.js'
 }));
 
-// 托管前端静态资源
+// 托管前端静态资源（带强缓存策略：hash 文件永久缓存，HTML 每次验证）
 if (isProduction) {
   app.use('/fund-dashboard', express.static(path.join(__dirname, 'dist'), {
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript');
-      } else if (filePath.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css');
+      const ext = path.extname(filePath);
+      if (ext === '.js' || ext === '.css') {
+        // Vite 构建产物带 content hash，可永久缓存
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (ext === '.html') {
+        // HTML 可能更新，每次验证
+        res.setHeader('Cache-Control', 'no-cache');
+      } else if (ext === '.svg' || ext === '.png' || ext === '.ico' || ext === '.woff2') {
+        // 图片/字体 - 缓存一周
+        res.setHeader('Cache-Control', 'public, max-age=604800');
       }
     }
   }));
