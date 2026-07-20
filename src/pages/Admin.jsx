@@ -38,7 +38,7 @@ async function fetchMissingStockNames(codes) {
 
   if (aShareSdk.length > 0) {
     try {
-      const quotes = await stockSDK.getSimpleQuotes(aShareSdk)
+      const quotes = await stockSDK.quotes.cnSimple(aShareSdk)
       quotes.forEach((q, i) => {
         if (q) {
           result[aShareOrig[i]] = {
@@ -52,7 +52,7 @@ async function fetchMissingStockNames(codes) {
   }
   if (hkCodes.length > 0) {
     try {
-      const quotes = await stockSDK.getHKQuotes(hkCodes)
+      const quotes = await stockSDK.quotes.hk(hkCodes)
       quotes.forEach((q, i) => {
         if (q) result[hkOrig[i]] = { code: hkOrig[i], name: q.name || hkOrig[i], market: 'hk' }
       })
@@ -60,7 +60,7 @@ async function fetchMissingStockNames(codes) {
   }
   if (usCodes.length > 0) {
     try {
-      const quotes = await stockSDK.getUSQuotes(usCodes)
+      const quotes = await stockSDK.quotes.us(usCodes)
       quotes.forEach((q, i) => {
         if (q) result[usOrig[i]] = { code: usOrig[i], name: q.name || usOrig[i], market: 'us' }
       })

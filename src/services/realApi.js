@@ -1,5 +1,5 @@
 // 真实数据服务
-// - 基金：通过服务端代理获取天天基金/东方财富数据
+// - 基金：浏览器端直调 stock-sdk 获取净值/持仓数据
 // - 股票：浏览器端直调 stock-sdk 获取 A股/港股/美股行情
 import { StockSDK } from 'stock-sdk'
 
@@ -7,11 +7,9 @@ const stockSDK = new StockSDK({ timeout: 15000 })
 
 export async function fetchFundRealData(fundCode) {
   try {
-    const timestamp = Date.now()
-    
     const [gzData, pingzhongData] = await Promise.all([
-      fetchFundGzData(fundCode, timestamp),
-      fetchPingzhongData(fundCode, timestamp)
+      fetchFundGzData(fundCode),
+      fetchPingzhongData(fundCode)
     ])
     
     if (!gzData) return null
@@ -29,25 +27,30 @@ export async function fetchFundRealData(fundCode) {
   }
 }
 
-async function fetchFundGzData(fundCode, timestamp) {
+// 通过 stock-sdk (腾讯源) 获取基金净值/名称/涨跌
+// 不依赖已挂的 fundgz.1234567.com.cn
+async function fetchFundGzData(fundCode) {
   try {
-    const url = `/api/fundgz/${fundCode}.js?rt=${timestamp}`
-    const response = await fetch(url)
-    const text = await response.text()
-    
-    const match = text.match(/jsonpgz\((.*)\)/)
-    if (match) {
-      return JSON.parse(match[1])
+    const funds = await stockSDK.quotes.fund([fundCode])
+    const f = funds?.[0]
+    if (f && f.name) {
+      return {
+        name: f.name,
+        dwjz: f.nav != null ? String(f.nav) : '',
+        gszzl: f.change != null ? String(f.change) : ''
+      }
     }
+    return null
   } catch (error) {
     console.error('Failed to fetch fund gz data:', error)
+    return null
   }
-  return null
 }
 
-async function fetchPingzhongData(fundCode, timestamp) {
+// 解析东方财富 pingzhong API 获取持仓明细
+async function fetchPingzhongData(fundCode) {
   try {
-    const url = `/api/pingzhong/${fundCode}.js?v=${timestamp}`
+    const url = `/api/pingzhong/${fundCode}.js?v=${Date.now()}`
     const response = await fetch(url)
     const text = await response.text()
 
@@ -176,7 +179,8 @@ function getMarketPrefix(code) {
   return '0.'
 }
 
-// 通过 stock-sdk 批量获取股票行情（A股 / 港股 / 美股）
+// 通过 stock-sdk 批量获取股票行情
+// 支持：A股(0./1.前缀) / 港股(116.) / 美股(105.) / 其他国际(106.及无前缀)
 export async function batchFetchStockData(codes) {
   if (!codes || codes.length === 0) return {}
 
@@ -189,16 +193,25 @@ export async function batchFetchStockData(codes) {
   const hkOrigCodes = []      // ['116.00700']
   const usCodes = []          // ['AAPL']
   const usOrigCodes = []      // ['105.AAPL']
+  const searchCodes = []      // ['000660', '106.GLW'] - 韩国/台湾等无标准前缀的代码
+  const searchOrigCodes = []  // ['000660', '106.GLW']
 
   codes.forEach(code => {
+    if (!code || typeof code !== 'string') return
+
     if (code.startsWith('116.')) {
       hkCodes.push(code.replace('116.', ''))
       hkOrigCodes.push(code)
     } else if (code.startsWith('105.')) {
       usCodes.push(code.replace('105.', ''))
       usOrigCodes.push(code)
-    } else {
-      const clean = code.replace(/^[01]\./, '')
+    } else if (code.startsWith('106.')) {
+      // 106 = 国际(台湾ADR等) - 多数在美股有ADR，按美股处理
+      usCodes.push(code.substring(3))
+      usOrigCodes.push(code)
+    } else if (code.startsWith('0.') || code.startsWith('1.')) {
+      // A股内部格式
+      const clean = code.substring(2)
       let sdkCode
       if (clean.startsWith('6')) {
         sdkCode = `sh${clean}`
@@ -207,15 +220,20 @@ export async function batchFetchStockData(codes) {
       }
       aShareSdkCodes.push(sdkCode)
       aShareOrigCodes.push(code)
+    } else {
+      // 无法通过标准前缀识别的代码（如韩国 000660、台湾 106.GLW）
+      // -> 通过 stock-sdk search 获取名称
+      searchCodes.push(code)
+      searchOrigCodes.push(code)
     }
   })
 
-  // A股批量行情
+  // A股批量行情 (v2 API)
   if (aShareSdkCodes.length > 0) {
     try {
-      const quotes = await stockSDK.getSimpleQuotes(aShareSdkCodes)
+      const quotes = await stockSDK.quotes.cnSimple(aShareSdkCodes)
       quotes.forEach((q, i) => {
-        if (q && q.code) {
+        if (q) {
           result[aShareOrigCodes[i]] = {
             code: aShareOrigCodes[i],
             name: q.name || aShareOrigCodes[i],
@@ -229,12 +247,12 @@ export async function batchFetchStockData(codes) {
     }
   }
 
-  // 港股批量行情
+  // 港股批量行情 (v2 API)
   if (hkCodes.length > 0) {
     try {
-      const quotes = await stockSDK.getHKQuotes(hkCodes)
+      const quotes = await stockSDK.quotes.hk(hkCodes)
       quotes.forEach((q, i) => {
-        if (q && q.code) {
+        if (q) {
           result[hkOrigCodes[i]] = {
             code: hkOrigCodes[i],
             name: q.name || hkOrigCodes[i],
@@ -248,12 +266,12 @@ export async function batchFetchStockData(codes) {
     }
   }
 
-  // 美股批量行情
+  // 美股批量行情 (v2 API)
   if (usCodes.length > 0) {
     try {
-      const quotes = await stockSDK.getUSQuotes(usCodes)
+      const quotes = await stockSDK.quotes.us(usCodes)
       quotes.forEach((q, i) => {
-        if (q && q.code) {
+        if (q) {
           result[usOrigCodes[i]] = {
             code: usOrigCodes[i],
             name: q.name || usOrigCodes[i],
@@ -265,6 +283,33 @@ export async function batchFetchStockData(codes) {
     } catch (e) {
       console.error('US batch failed:', e.message)
     }
+  }
+
+  // 国际代码兜底：通过 stock-sdk search 查询名称（韩国等市场可能查不到）
+  if (searchCodes.length > 0) {
+    const searches = await Promise.allSettled(
+      searchCodes.map(async (code) => {
+        const searchKey = code.includes('.') ? code.split('.')[1] : code
+        const results = await stockSDK.search(searchKey)
+        // 在结果中找非A股的匹配（A股内部代码通常有 sh/sz 前缀）
+        const match = results.find(r => {
+          const sym = r.symbol || ''
+          return sym.startsWith('us') || sym.startsWith('hk')
+        }) || results.find(r => r.category === 'stock')
+        return match || null
+      })
+    )
+
+    searches.forEach((s, i) => {
+      if (s.status === 'fulfilled' && s.value) {
+        result[searchOrigCodes[i]] = {
+          code: searchOrigCodes[i],
+          name: s.value.name || searchOrigCodes[i],
+          price: 0,
+          changePercent: 0
+        }
+      }
+    })
   }
 
   return result
