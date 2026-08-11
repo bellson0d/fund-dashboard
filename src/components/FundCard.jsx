@@ -21,7 +21,12 @@ function FundCard({ fund }) {
     <div className={`${cardClass} rounded-xl p-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col`}>
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm text-gray-800 truncate">{fund.name}</h3>
+          <h3
+            className="font-semibold text-sm truncate text-gray-800 hover:text-gray-600 hover:underline cursor-pointer"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); window.open(`https://fund.eastmoney.com/${fund.code}.html`, '_blank') }}
+            title="点击查看天天基金详情"
+          >{fund.name}</h3>
           <p className="text-xs text-gray-500 mt-0.25">{fund.code}</p>
         </div>
         <div className={`text-right ${

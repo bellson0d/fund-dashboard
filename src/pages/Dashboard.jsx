@@ -1,17 +1,19 @@
-// 基金看板 - 展示已添加基金的净值和持仓，支持 iOS 风格拖拽排序
+// 基金看板 - 展示已添加基金的净值和持仓，支持拖拽排序
 import { useState, useEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
+import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import FundCard from '../components/FundCard'
+import SortableCard from '../components/SortableCard'
 import { fetchFundData } from '../services/api'
 import { fetchFundRealData, batchFetchStockData } from '../services/realApi'
 import { useLocalStorage } from '../hooks/useLocalStorage'
-import { useDragSort } from '../hooks/useDragSort'
 import { defaultFundCodes } from '../data/mockData'
 
 function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
   const [funds, setFunds] = useState([])
   const [apiError, setApiError] = useState(false)
+  const [activeId, setActiveId] = useState(null)
 
   const loadFundData = useCallback(async () => {
     setApiError(false)
@@ -24,7 +26,6 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
 
     let validFunds = results.filter(Boolean)
 
-    // 真实模式下，获取基金持仓股票的实时涨跌
     if (useRealApi && validFunds.length > 0) {
       const secids = []
       validFunds.forEach(fund => {
@@ -67,7 +68,6 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
       }
     }
 
-    // 真实 API 失败时降级到模拟数据
     if (useRealApi && validFunds.length === 0) {
       setApiError(true)
       const mockResults = await Promise.all(
@@ -92,14 +92,30 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
     loadFundData()
   }, [loadFundData, refreshKey])
 
-  const { isDragging, dragIndex, displayItems, ghostPos, handleMouseDown, getItemOriginalIndex } = useDragSort(fundCodes, setFundCodes)
-
-  // 通过 code 查找基金数据
   const fundMap = {}
   funds.forEach(f => { fundMap[f.code] = f })
 
-  // 幽灵卡片数据
-  const draggedFund = isDragging ? fundMap[fundCodes[dragIndex]] : null
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id)
+  }
+
+  const handleDragEnd = (event) => {
+    setActiveId(null)
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setFundCodes((items) => {
+        const oldIndex = items.indexOf(active.id)
+        const newIndex = items.indexOf(over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const activeFund = activeId ? fundMap[activeId] : null
 
   return (
     <div>
@@ -108,71 +124,41 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           真实API获取失败，已自动切换到模拟数据
         </div>
       )}
-      <div id="drag-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {funds.length === 0 ? (
-          <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-10">
-            <p className="text-gray-500">
-              {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
-            </p>
-          </div>
-        ) : (
-          displayItems.map((item, index) => {
-            // 占位卡片
-            if (item._placeholder) {
-              return (
-                <div
-                  key="_ph"
-                  className="rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/40 transition-all duration-300"
-                  style={{ minHeight: ghostPos ? `${ghostPos.h}px` : '220px' }}
-                />
-              )
-            }
-
-            // 真实卡片
-            const fund = fundMap[item]
-            if (!fund) return null
-            const origIndex = getItemOriginalIndex(item)
-
-            return (
-              <div
-                key={fund.code}
-                data-drag-index={origIndex}
-                onMouseDown={(e) => handleMouseDown(e, origIndex)}
-                style={{
-                  transition: 'transform 0.3s ease, opacity 0.3s ease',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                }}
-              >
-                <FundCard fund={fund} />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={fundCodes} strategy={rectSortingStrategy}>
+          <div id="drag-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {funds.length === 0 ? (
+              <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-10">
+                <p className="text-gray-500">
+                  {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
+                </p>
               </div>
-            )
-          })
-        )}
-      </div>
-
-      {/* 拖拽幽灵卡片 */}
-      {ghostPos && draggedFund &&
-        createPortal(
-          <div
-            id="drag-ghost"
-            style={{
-              position: 'fixed',
-              left: ghostPos.x,
-              top: ghostPos.y,
-              width: ghostPos.w,
-              height: ghostPos.h,
-              zIndex: 9999,
-              opacity: 0.9,
-              transform: 'scale(1.03)',
-              pointerEvents: 'none',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
-              borderRadius: '12px',
-            }}
-          >
-            <FundCard fund={draggedFund} />
-          </div>,
-          document.body
-        )}
+            ) : (
+              fundCodes.map(code => {
+                const fund = fundMap[code]
+                if (!fund) return null
+                return (
+                  <SortableCard key={code} id={code}>
+                    <FundCard fund={fund} />
+                  </SortableCard>
+                )
+              })
+            )}
+          </div>
+        </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {activeFund ? (
+            <div style={{ opacity: 0.9, transform: 'scale(1.03)', boxShadow: '0 10px 40px rgba(0,0,0,0.25)', borderRadius: '12px' }}>
+              <FundCard fund={activeFund} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 }
