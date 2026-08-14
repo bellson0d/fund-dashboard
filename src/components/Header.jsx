@@ -32,7 +32,14 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
   return (
     <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-2 sm:px-4 shadow-sm">
       <div className="flex items-center gap-1 sm:gap-3">
-        <div className="text-white font-semibold text-xs sm:text-sm">投资看板</div>
+        <div className="flex items-center gap-1.5">
+          <img
+            src={`${import.meta.env.BASE_URL}logo.svg`}
+            alt="投资看板"
+            className="w-4 h-4 rounded"
+          />
+          <span className="text-white font-semibold text-xs sm:text-sm">投资看板</span>
+        </div>
         <div className="flex gap-0.5 sm:gap-1">
           <button
             onClick={() => navigate('/fund')}
