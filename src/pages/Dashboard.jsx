@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 import FundCard from '../components/FundCard'
 import SortableCard from '../components/SortableCard'
 import { fetchFundData } from '../services/api'
-import { fetchFundRealData, batchFetchStockData } from '../services/realApi'
+import { fetchFundsRealData, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
@@ -29,14 +29,18 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
 
     setIsLoading(true)
     try {
-      const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
       let usingReal = useRealApi
+      let validFunds
 
-      const results = await Promise.all(
-        fundCodes.map(code => fetchFn(code))
-      )
-
-      let validFunds = results.filter(Boolean)
+      if (useRealApi) {
+        // 真实接口：一次批量请求取回全部基金行情（原先每只基金各一次），持仓逐只限流获取
+        validFunds = await fetchFundsRealData(fundCodes)
+      } else {
+        const results = await Promise.all(
+          fundCodes.map(code => fetchFundData(code))
+        )
+        validFunds = results.filter(Boolean)
+      }
 
       if (useRealApi && validFunds.length > 0) {
         const secids = []

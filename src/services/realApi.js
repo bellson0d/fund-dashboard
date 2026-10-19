@@ -2,53 +2,55 @@
 // - 基金：浏览器端直调 stock-sdk 获取净值/持仓数据
 // - 股票：浏览器端直调 stock-sdk 获取 A股/港股/美股行情
 import { StockSDK } from 'stock-sdk'
+import { createLimiter } from './concurrency'
 
 const stockSDK = new StockSDK({ timeout: 15000 })
 
-export async function fetchFundRealData(fundCode) {
-  try {
-    const [gzData, pingzhongData] = await Promise.all([
-      fetchFundGzData(fundCode),
-      fetchPingzhongData(fundCode)
-    ])
-    
-    if (!gzData) return null
-    
-    return {
-      code: fundCode,
-      name: gzData.name || '未知基金',
-      netValue: parseFloat(gzData.dwjz) || 1.0,
-      change: parseFloat(gzData.gszzl) || 0,
-      holdings: pingzhongData || []
-    }
-  } catch (error) {
-    console.error('Failed to fetch real fund data:', error)
-    return null
-  }
-}
+// 持仓文件请求限流：东财按基金代码分文件无法合并，用限流器控制并发
+const limitHoldings = createLimiter(4)
 
-// 通过 stock-sdk (腾讯源) 获取基金净值/名称/涨跌
-// 不依赖已挂的 fundgz.1234567.com.cn
-async function fetchFundGzData(fundCode) {
+// 批量获取基金净值/名称/涨跌 + 持仓
+// - 净值/名称/涨跌：一次批量行情请求取回全部（原先每只基金一次，N -> 1）
+// - 持仓：东财按基金代码分文件，逐只请求但经限流器串行化
+// - 持仓股票的名称/涨跌补全交由调用方（Dashboard）的全局 batchFetchStockData 统一处理
+export async function fetchFundsRealData(fundCodes) {
+  if (!fundCodes || fundCodes.length === 0) return []
+
+  // 1) 批量行情：一次取回全部基金的名称/净值/涨跌
+  const quoteMap = {}
   try {
-    const funds = await stockSDK.quotes.fund([fundCode])
-    const f = funds?.[0]
-    if (f && f.name) {
-      return {
-        name: f.name,
-        dwjz: f.nav != null ? String(f.nav) : '',
-        gszzl: f.change != null ? String(f.change) : ''
-      }
-    }
-    return null
+    const quotes = await stockSDK.quotes.fund(fundCodes)
+    quotes.forEach((q, i) => {
+      if (!q) return
+      quoteMap[q.code || fundCodes[i]] = q
+    })
   } catch (error) {
-    console.error('Failed to fetch fund gz data:', error)
-    return null
+    console.warn('Failed to fetch fund quotes:', error?.message)
   }
+
+  // 2) 逐只获取持仓（带并发限流）
+  const holdingsList = await Promise.all(
+    fundCodes.map(code => limitHoldings(() => fetchPingzhongData(code, { enrich: false })))
+  )
+
+  return fundCodes
+    .map((code, i) => {
+      const q = quoteMap[code]
+      if (!q || !q.name) return null
+      return {
+        code,
+        name: q.name,
+        netValue: q.nav != null ? Number(q.nav) : 1.0,
+        change: q.change != null ? Number(q.change) : 0,
+        holdings: holdingsList[i] || []
+      }
+    })
+    .filter(Boolean)
 }
 
 // 解析东方财富 pingzhong API 获取持仓明细
-async function fetchPingzhongData(fundCode) {
+// enrich: 是否用 stock-sdk 补全持仓股票名称/涨跌（Dashboard 已有全局批量补全，可传 false 避免重复请求）
+async function fetchPingzhongData(fundCode, { enrich = true } = {}) {
   try {
     const url = `/api/pingzhong/${fundCode}.js?v=${Date.now()}`
     const response = await fetch(url)
@@ -137,7 +139,7 @@ async function fetchPingzhongData(fundCode) {
     }
 
     // 如果 stockNames 缺失（东方财富 API 不返回名称），通过 stock-sdk 补全
-    if (stockNames.length === 0 && codesToLookup.length > 0) {
+    if (enrich && stockNames.length === 0 && codesToLookup.length > 0) {
       try {
         const stockData = await batchFetchStockData(codesToLookup)
         holdings.forEach(holding => {

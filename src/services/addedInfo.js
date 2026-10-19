@@ -4,8 +4,15 @@
 // - 基准价：基金取添加日的历史净值、股票取添加日的历史日 K 收盘价（前复权）
 //           首次请求后写入 meta 缓存，之后不再重复请求
 import { StockSDK } from 'stock-sdk'
+import { createLimiter } from './concurrency'
 
 const stockSDK = new StockSDK({ timeout: 15000 })
+
+// 基准价请求限流：所有股票/基金的 kline / navHistory 请求共用，避免突发并发被数据源丢弃
+const limitBasePrice = createLimiter(4)
+
+// 基准价请求失败后的冷却时间：期间不再重试，避免每次加载都重复失败刷屏
+const BASE_PRICE_FAIL_TTL = 6 * 60 * 60 * 1000
 
 // 由 git log 推导：现有默认列表的加入日期
 export const DEFAULT_FUND_ADDED_AT = '2026-05-14'   // commit 6f06261 更新默认配置
@@ -91,25 +98,29 @@ export function formatAddedDuration(addedAt, now = Date.now()) {
   return `${days}天`
 }
 
-// 基准价：优先用缓存，否则请求一次历史数据并缓存
+// 基准价：优先用缓存；失败后进入冷却期（TTL 内不再重试）；否则限流请求一次历史数据并缓存
 export async function resolveBasePrice(type, code, addedAt) {
-  const meta = readMeta(type)
-  const cached = meta[code]?.basePrice
-  if (cached) return cached
+  const entry = readMeta(type)[code] || {}
+  if (entry.basePrice) return entry.basePrice
+  if (entry.basePriceFailedAt && Date.now() - entry.basePriceFailedAt < BASE_PRICE_FAIL_TTL) {
+    return null
+  }
 
   let price = null
   try {
-    price = type === 'fund'
-      ? await fetchFundNavAt(code, addedAt)
-      : await fetchStockCloseAt(code, addedAt)
+    price = await limitBasePrice(() => (
+      type === 'fund' ? fetchFundNavAt(code, addedAt) : fetchStockCloseAt(code, addedAt)
+    ))
   } catch (error) {
-    console.error('Failed to fetch base price:', code, error.message)
+    console.warn('Failed to fetch base price:', code, error?.message)
   }
 
-  if (price) {
-    meta[code] = { ...meta[code], addedAt, basePrice: price }
-    writeMeta(type, meta)
-  }
+  // 重新读取，避免与其他并发写入互相覆盖；成功后写永久缓存，失败则记冷却时间
+  const meta = readMeta(type)
+  meta[code] = price
+    ? { ...meta[code], addedAt, basePrice: price }
+    : { ...meta[code], addedAt, basePriceFailedAt: Date.now() }
+  writeMeta(type, meta)
   return price
 }
 
