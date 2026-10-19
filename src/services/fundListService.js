@@ -3,6 +3,8 @@
 // - localStorage 缓存 24 小时，减少 API 请求
 const CACHE_KEY = 'fund_list_cache'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24小时
+// 缓存结构版本：结构或字段含义变化时递增，旧缓存自动失效
+const CACHE_VERSION = 2
 
 export async function getFundList(forceRefresh = false) {
   if (!forceRefresh) {
@@ -17,14 +19,15 @@ export async function getFundList(forceRefresh = false) {
     const match = text.match(/var r = (\[.*\])/)
     if (match) {
       const data = JSON.parse(match[1])
-      const fundList = data.map(item => ({
-        code: item[0],
-        name: item[2],
-        type: item[3]
-      }))
+      // 仅保留含中文名称的有效条目：上游格式异常时避免缓存缺名称的脏数据
+      const fundList = data
+        .map(item => ({ code: item[0], name: item[2], type: item[3] }))
+        .filter(fund => fund.code && fund.name)
 
-      saveToCache(fundList)
-      return fundList
+      if (fundList.length > 0) {
+        saveToCache(fundList)
+        return fundList
+      }
     }
   } catch (error) {
     console.error('Failed to fetch fund list:', error)
@@ -36,12 +39,16 @@ export async function getFundList(forceRefresh = false) {
 function getCachedFundList() {
   try {
     const cached = localStorage.getItem(CACHE_KEY)
-    if (cached) {
-      const data = JSON.parse(cached)
-      if (Date.now() - data.timestamp < CACHE_TTL) {
-        return data.funds
-      }
-    }
+    if (!cached) return null
+
+    const data = JSON.parse(cached)
+    // 版本或结构不合法（如历史脏缓存缺少名称）时视为无效，触发重新拉取
+    if (data.version !== CACHE_VERSION) return null
+    if (!Array.isArray(data.funds) || data.funds.length === 0) return null
+    if (!data.funds[0]?.code || !data.funds[0]?.name) return null
+    if (Date.now() - data.timestamp >= CACHE_TTL) return null
+
+    return data.funds
   } catch (error) {
     console.error('Failed to get cached fund list:', error)
   }
@@ -51,6 +58,7 @@ function getCachedFundList() {
 function saveToCache(funds) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
+      version: CACHE_VERSION,
       funds,
       timestamp: Date.now()
     }))
@@ -76,14 +84,20 @@ export function getCacheStatus() {
     const cached = localStorage.getItem(CACHE_KEY)
     if (cached) {
       const data = JSON.parse(cached)
-      const age = Date.now() - data.timestamp
+      const timestamp = typeof data.timestamp === 'number' ? data.timestamp : 0
+      const age = Date.now() - timestamp
       const hours = Math.floor(age / (1000 * 60 * 60))
+      // 版本/结构合法且含名称，才认为是有效缓存
+      const valid = data.version === CACHE_VERSION &&
+        Array.isArray(data.funds) &&
+        data.funds.length > 0 &&
+        !!data.funds[0]?.name
       return {
-        exists: true,
-        count: data.funds.length,
+        exists: valid,
+        count: valid ? data.funds.length : 0,
         age,
         hours,
-        isValid: age < CACHE_TTL
+        isValid: valid && age < CACHE_TTL
       }
     }
   } catch (error) {

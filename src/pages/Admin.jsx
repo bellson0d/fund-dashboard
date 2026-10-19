@@ -71,6 +71,20 @@ async function fetchMissingStockNames(codes) {
   return result
 }
 
+// 补全缺失的基金名称 - 全量基金列表不可用/缺失时，用 stock-sdk 批量取名称
+async function fetchMissingFundNames(codes) {
+  const result = {}
+  try {
+    const funds = await stockSDK.quotes.fund(codes)
+    funds.forEach((f, i) => {
+      if (f && f.name) result[codes[i]] = f.name
+    })
+  } catch (e) {
+    console.error('fetch fund names:', e.message)
+  }
+  return result
+}
+
 function Admin() {
   const [adminTab, setAdminTab] = useState('fund')
   
@@ -84,6 +98,7 @@ function Admin() {
   const [fundList, setFundList] = useState([])
   const [stockSearchResults, setStockSearchResults] = useState([])
   const [stockInfoCache, setStockInfoCache] = useLocalStorage('stockInfoCache', {})
+  const [fundInfoCache, setFundInfoCache] = useLocalStorage('fundInfoCache', {})
   const [isLoading, setIsLoading] = useState(false)
   const [fundCacheStatus, setFundCacheStatus] = useState(null)
   
@@ -106,6 +121,23 @@ function Admin() {
     })
     return () => { cancelled = true }
   }, [adminTab, stockCodes])
+
+  // 全量基金列表不可用时，用 stock-sdk 补全缺失的基金名称，保证已添加列表始终显示中文名
+  useEffect(() => {
+    if (adminTab !== 'fund') return
+    const missing = fundCodes.filter(code => {
+      const inList = fundList.find(f => f.code === code)
+      return !inList?.name && !fundInfoCache[code]
+    })
+    if (missing.length === 0) return
+
+    let cancelled = false
+    fetchMissingFundNames(missing).then(names => {
+      if (cancelled || Object.keys(names).length === 0) return
+      setFundInfoCache(prev => ({ ...prev, ...names }))
+    })
+    return () => { cancelled = true }
+  }, [adminTab, fundCodes, fundList])
 
   useEffect(() => {
     setFundCacheStatus(getFundCacheStatus())
@@ -220,7 +252,11 @@ function Admin() {
 
   const getItemInfo = (code) => {
     if (adminTab === 'fund') {
-      return currentList.find(f => f.code === code)
+      const found = currentList.find(f => f.code === code)
+      if (found?.name) return found
+      // 全量列表缺失时，回退到 stock-sdk 补全的名称缓存
+      if (fundInfoCache[code]) return { code, name: fundInfoCache[code], type: found?.type }
+      return found || null
     } else {
       return stockInfoCache[code] || null
     }
