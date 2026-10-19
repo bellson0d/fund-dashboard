@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { Loader2 } from 'lucide-react'
 import StockCard from '../components/StockCard'
 import SortableCard from '../components/SortableCard'
 import { batchFetchStockData } from '../services/realApi'
@@ -13,6 +14,7 @@ function Stock({ searchQuery, refreshKey }) {
   const [stockCodes, setStockCodes] = useLocalStorage('stockCodes', defaultStockCodes)
   const [stocks, setStocks] = useState([])
   const [apiError, setApiError] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [activeId, setActiveId] = useState(null)
 
   const loadStockData = useCallback(async () => {
@@ -20,9 +22,11 @@ function Stock({ searchQuery, refreshKey }) {
 
     if (stockCodes.length === 0) {
       setStocks([])
+      setIsLoading(false)
       return
     }
 
+    setIsLoading(true)
     try {
       const stockData = await batchFetchStockData(stockCodes)
 
@@ -66,6 +70,8 @@ function Stock({ searchQuery, refreshKey }) {
     } catch (error) {
       console.error('Failed to fetch stock data:', error)
       setApiError(true)
+    } finally {
+      setIsLoading(false)
     }
   }, [stockCodes, searchQuery])
 
@@ -97,12 +103,20 @@ function Stock({ searchQuery, refreshKey }) {
   }
 
   const activeStock = activeId ? stockMap[activeId] : null
+  // 仅在"有数据待加载"时显示骨架屏：无股票时直接显示空状态
+  const showSkeleton = isLoading && stockCodes.length > 0
 
   return (
     <div>
       {apiError && (
         <div className="mb-2 p-2 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
           获取股票数据失败，请稍后重试
+        </div>
+      )}
+      {showSkeleton && (
+        <div className="mb-2 flex items-center gap-1.5 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          正在加载股票数据...
         </div>
       )}
       <DndContext
@@ -113,7 +127,23 @@ function Stock({ searchQuery, refreshKey }) {
       >
         <SortableContext items={stockCodes} strategy={rectSortingStrategy}>
           <div id="drag-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {stocks.length === 0 ? (
+            {showSkeleton ? (
+              Array.from({ length: stockCodes.length }).map((_, i) => (
+                <div key={`skeleton-${i}`} className="bg-white rounded-xl p-2 shadow-sm animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <div className="h-4 w-2/3 bg-gray-200 rounded" />
+                      <div className="h-3 w-1/3 bg-gray-100 rounded mt-1" />
+                    </div>
+                    <div className="text-right space-y-1">
+                      <div className="h-5 w-14 bg-gray-200 rounded ml-auto" />
+                      <div className="h-3 w-10 bg-gray-100 rounded ml-auto" />
+                    </div>
+                  </div>
+                  <div className="h-3 w-full bg-gray-100 rounded mt-2" />
+                </div>
+              ))
+            ) : stocks.length === 0 ? (
               <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-10">
                 <p className="text-gray-500">
                   {searchQuery ? '未找到匹配的股票' : '暂无股票数据，请在 Admin 中添加股票'}

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { Loader2 } from 'lucide-react'
 import FundCard from '../components/FundCard'
 import SortableCard from '../components/SortableCard'
 import { fetchFundData } from '../services/api'
@@ -14,96 +15,108 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
   const [funds, setFunds] = useState([])
   const [apiError, setApiError] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [activeId, setActiveId] = useState(null)
 
   const loadFundData = useCallback(async () => {
     setApiError(false)
 
-    const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
-    let usingReal = useRealApi
+    if (fundCodes.length === 0) {
+      setFunds([])
+      setIsLoading(false)
+      return
+    }
 
-    const results = await Promise.all(
-      fundCodes.map(code => fetchFn(code))
-    )
+    setIsLoading(true)
+    try {
+      const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
+      let usingReal = useRealApi
 
-    let validFunds = results.filter(Boolean)
+      const results = await Promise.all(
+        fundCodes.map(code => fetchFn(code))
+      )
 
-    if (useRealApi && validFunds.length > 0) {
-      const secids = []
-      validFunds.forEach(fund => {
-        fund.holdings.forEach(holding => {
-          if (holding.code && !secids.includes(holding.code)) {
-            secids.push(holding.code)
-          }
+      let validFunds = results.filter(Boolean)
+
+      if (useRealApi && validFunds.length > 0) {
+        const secids = []
+        validFunds.forEach(fund => {
+          fund.holdings.forEach(holding => {
+            if (holding.code && !secids.includes(holding.code)) {
+              secids.push(holding.code)
+            }
+          })
         })
-      })
 
-      if (secids.length > 0) {
-        try {
-          const stockData = await batchFetchStockData(secids)
+        if (secids.length > 0) {
+          try {
+            const stockData = await batchFetchStockData(secids)
 
-          validFunds = validFunds.map(fund => ({
-            ...fund,
-            holdings: fund.holdings.map(holding => {
-              let realData = null
-              if (holding.code) {
-                realData = stockData[holding.code]
-                if (!realData) {
-                  const cleanCode = holding.code.replace(/^[01]\./, '')
-                  realData = stockData[cleanCode]
+            validFunds = validFunds.map(fund => ({
+              ...fund,
+              holdings: fund.holdings.map(holding => {
+                let realData = null
+                if (holding.code) {
+                  realData = stockData[holding.code]
+                  if (!realData) {
+                    const cleanCode = holding.code.replace(/^[01]\./, '')
+                    realData = stockData[cleanCode]
+                  }
                 }
-              }
-              if (realData) {
-                return {
-                  ...holding,
-                  name: realData.name || holding.name,
-                  change: realData.changePercent || holding.change,
-                  price: realData.price
+                if (realData) {
+                  return {
+                    ...holding,
+                    name: realData.name || holding.name,
+                    change: realData.changePercent || holding.change,
+                    price: realData.price
+                  }
                 }
-              }
-              return holding
-            })
-          }))
-        } catch (error) {
-          console.error('Failed to fetch batch stock data:', error)
+                return holding
+              })
+            }))
+          } catch (error) {
+            console.error('Failed to fetch batch stock data:', error)
+          }
         }
       }
-    }
 
-    if (useRealApi && validFunds.length === 0) {
-      setApiError(true)
-      usingReal = false
-      const mockResults = await Promise.all(
-        fundCodes.map(code => fetchFundData(code))
-      )
-      validFunds = mockResults.filter(Boolean)
-    }
+      if (useRealApi && validFunds.length === 0) {
+        setApiError(true)
+        usingReal = false
+        const mockResults = await Promise.all(
+          fundCodes.map(code => fetchFundData(code))
+        )
+        validFunds = mockResults.filter(Boolean)
+      }
 
-    // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史净值）
-    const addedMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes)
-    validFunds = await Promise.all(validFunds.map(async (fund) => {
-      const info = addedMeta[fund.code]
-      if (!info) return fund
+      // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史净值）
+      const addedMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes)
+      validFunds = await Promise.all(validFunds.map(async (fund) => {
+        const info = addedMeta[fund.code]
+        if (!info) return fund
 
-      const addedDays = formatAddedDuration(info.addedAt)
-      if (!usingReal) return { ...fund, addedAt: info.addedAt, addedDays }
+        const addedDays = formatAddedDuration(info.addedAt)
+        if (!usingReal) return { ...fund, addedAt: info.addedAt, addedDays }
 
-      const basePrice = await resolveBasePrice('fund', fund.code, info.addedAt)
-      const addedGain = basePrice && fund.netValue
-        ? (fund.netValue / basePrice - 1) * 100
-        : null
-      return { ...fund, addedAt: info.addedAt, addedDays, addedGain }
-    }))
+        const basePrice = await resolveBasePrice('fund', fund.code, info.addedAt)
+        const addedGain = basePrice && fund.netValue
+          ? (fund.netValue / basePrice - 1) * 100
+          : null
+        return { ...fund, addedAt: info.addedAt, addedDays, addedGain }
+      }))
 
-    if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase()
-      const filtered = validFunds.filter(fund =>
-        fund.name.toLowerCase().includes(lowerQuery) ||
-        fund.code.includes(searchQuery)
-      )
-      setFunds(filtered)
-    } else {
-      setFunds(validFunds)
+      if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase()
+        const filtered = validFunds.filter(fund =>
+          fund.name.toLowerCase().includes(lowerQuery) ||
+          fund.code.includes(searchQuery)
+        )
+        setFunds(filtered)
+      } else {
+        setFunds(validFunds)
+      }
+    } finally {
+      setIsLoading(false)
     }
   }, [fundCodes, searchQuery, useRealApi])
 
@@ -135,12 +148,20 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   }
 
   const activeFund = activeId ? fundMap[activeId] : null
+  // 仅在"有数据待加载"时显示骨架屏：无基金时直接显示空状态
+  const showSkeleton = isLoading && fundCodes.length > 0
 
   return (
     <div>
       {apiError && (
         <div className="mb-2 p-2 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
           真实API获取失败，已自动切换到模拟数据
+        </div>
+      )}
+      {showSkeleton && (
+        <div className="mb-2 flex items-center gap-1.5 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          正在加载基金数据...
         </div>
       )}
       <DndContext
@@ -151,7 +172,28 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
       >
         <SortableContext items={fundCodes} strategy={rectSortingStrategy}>
           <div id="drag-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {funds.length === 0 ? (
+            {showSkeleton ? (
+              Array.from({ length: fundCodes.length }).map((_, i) => (
+                <div key={`skeleton-${i}`} className="bg-white rounded-xl p-2 shadow-sm animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <div className="h-4 w-3/4 bg-gray-200 rounded" />
+                      <div className="h-3 w-1/3 bg-gray-100 rounded mt-1" />
+                    </div>
+                    <div className="text-right space-y-1">
+                      <div className="h-5 w-16 bg-gray-200 rounded ml-auto" />
+                      <div className="h-3 w-10 bg-gray-100 rounded ml-auto" />
+                    </div>
+                  </div>
+                  <div className="h-3 w-1/2 bg-gray-100 rounded mt-2" />
+                  <div className="border-t border-gray-200/50 pt-2 mt-1 grid grid-cols-2 gap-x-3 gap-y-1">
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <div key={j} className="h-3 bg-gray-100 rounded" />
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : funds.length === 0 ? (
               <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-10">
                 <p className="text-gray-500">
                   {searchQuery ? '未找到匹配的基金' : '暂无基金数据，请在 Admin 中添加基金'}
