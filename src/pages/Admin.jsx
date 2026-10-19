@@ -7,6 +7,7 @@ import { defaultFundCodes } from '../data/mockData'
 import { defaultStockCodes } from '../data/stockData'
 import { getFundList, searchFunds, getCacheStatus as getFundCacheStatus, clearFundListCache } from '../services/fundListService'
 import { searchStocks as searchStocksAPI } from '../services/stockSearchService'
+import { recordAddition } from '../services/addedInfo'
 
 const stockSDK = new StockSDK({ timeout: 15000 })
 
@@ -165,6 +166,8 @@ function Admin() {
   const addItem = (code) => {
     setCurrentCodes([...currentCodes, code])
     setSaved(false)
+    // 记录实际添加时间，供"添加后涨幅"使用
+    recordAddition(adminTab, code)
     
     if (adminTab === 'stock') {
       const stockInfo = filteredItems.find(item => item.code === code)

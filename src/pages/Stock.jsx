@@ -5,6 +5,7 @@ import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortab
 import StockCard from '../components/StockCard'
 import SortableCard from '../components/SortableCard'
 import { batchFetchStockData } from '../services/realApi'
+import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultStockCodes } from '../data/stockData'
 
@@ -25,7 +26,7 @@ function Stock({ searchQuery, refreshKey }) {
     try {
       const stockData = await batchFetchStockData(stockCodes)
 
-      const validStocks = stockCodes.map(code => {
+      let validStocks = stockCodes.map(code => {
         const data = stockData[code]
         if (data) {
           return {
@@ -37,6 +38,20 @@ function Stock({ searchQuery, refreshKey }) {
         }
         return { code, name: code, price: 0, change: 0 }
       })
+
+      // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史日 K）
+      const addedMeta = ensureAddedAt('stock', stockCodes, defaultStockCodes)
+      validStocks = await Promise.all(validStocks.map(async (stock) => {
+        const info = addedMeta[stock.code]
+        if (!info) return stock
+
+        const addedDays = formatAddedDuration(info.addedAt)
+        const basePrice = await resolveBasePrice('stock', stock.code, info.addedAt)
+        const addedGain = basePrice && stock.price
+          ? (stock.price / basePrice - 1) * 100
+          : null
+        return { ...stock, addedAt: info.addedAt, addedDays, addedGain }
+      }))
 
       if (searchQuery) {
         const lowerQuery = searchQuery.toLowerCase()

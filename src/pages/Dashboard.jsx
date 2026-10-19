@@ -6,6 +6,7 @@ import FundCard from '../components/FundCard'
 import SortableCard from '../components/SortableCard'
 import { fetchFundData } from '../services/api'
 import { fetchFundRealData, batchFetchStockData } from '../services/realApi'
+import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 
@@ -19,6 +20,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
     setApiError(false)
 
     const fetchFn = useRealApi ? fetchFundRealData : fetchFundData
+    let usingReal = useRealApi
 
     const results = await Promise.all(
       fundCodes.map(code => fetchFn(code))
@@ -70,11 +72,28 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
 
     if (useRealApi && validFunds.length === 0) {
       setApiError(true)
+      usingReal = false
       const mockResults = await Promise.all(
         fundCodes.map(code => fetchFundData(code))
       )
       validFunds = mockResults.filter(Boolean)
     }
+
+    // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史净值）
+    const addedMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes)
+    validFunds = await Promise.all(validFunds.map(async (fund) => {
+      const info = addedMeta[fund.code]
+      if (!info) return fund
+
+      const addedDays = formatAddedDuration(info.addedAt)
+      if (!usingReal) return { ...fund, addedAt: info.addedAt, addedDays }
+
+      const basePrice = await resolveBasePrice('fund', fund.code, info.addedAt)
+      const addedGain = basePrice && fund.netValue
+        ? (fund.netValue / basePrice - 1) * 100
+        : null
+      return { ...fund, addedAt: info.addedAt, addedDays, addedGain }
+    }))
 
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase()

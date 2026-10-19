@@ -2,6 +2,8 @@
 function StockCard({ stock }) {
   const isUp = stock.change > 0
   const isDown = stock.change < 0
+  const addedUp = stock.addedGain > 0
+  const addedDown = stock.addedGain < 0
 
   // 构造百度金融个股链接
   // 内部前缀: 0./1.=A股, 105.=美股, 116.=港股
@@ -53,6 +55,24 @@ function StockCard({ stock }) {
           </p>
         </div>
       </div>
+
+      {stock.addedAt && (
+        <div className="flex items-center justify-between text-xs mt-0.5 pt-0.5 border-t border-gray-200/50">
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500">添加后</span>
+            {stock.addedGain != null ? (
+              <span className={`font-medium ${
+                addedUp ? 'text-red-600' : addedDown ? 'text-green-600' : 'text-gray-500'
+              }`}>
+                {addedUp ? '+' : ''}{stock.addedGain.toFixed(2)}%
+              </span>
+            ) : (
+              <span className="text-gray-400">--</span>
+            )}
+          </span>
+          <span className="text-gray-400" title={`添加于 ${stock.addedAt}`}>{stock.addedDays}</span>
+        </div>
+      )}
     </div>
   )
 }
