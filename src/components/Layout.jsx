@@ -2,7 +2,7 @@
 import { useLocation } from 'react-router-dom'
 import Header from './Header'
 
-function Layout({ children, searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle }) {
+function Layout({ children, searchQuery, onSearchChange, onRefresh, lastSyncTime }) {
   const location = useLocation()
   const activeTab = location.pathname.split('/')[1] || 'fund'
 
@@ -13,8 +13,6 @@ function Layout({ children, searchQuery, onSearchChange, onRefresh, lastSyncTime
         onSearchChange={onSearchChange}
         onRefresh={onRefresh}
         lastSyncTime={lastSyncTime}
-        useRealApi={useRealApi}
-        onApiToggle={onApiToggle}
         activeTab={activeTab}
       />
       <main className="p-4">

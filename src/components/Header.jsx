@@ -1,9 +1,9 @@
-// 顶部导航栏 - 路由切换 / 搜索 / 数据源切换 / 刷新
+// 顶部导航栏 - 路由切换 / 搜索 / 刷新
 import { useState } from 'react'
-import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, Database, Server } from 'lucide-react'
+import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, History } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
-function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealApi, onApiToggle, activeTab }) {
+function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, activeTab }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const navigate = useNavigate()
 
@@ -28,6 +28,7 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
   const isFund = activeTab === 'fund'
   const isStock = activeTab === 'stock'
   const isAdmin = activeTab === 'admin'
+  const isHistory = activeTab === 'history'
 
   return (
     <header className="h-8 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-between px-2 sm:px-4 shadow-sm">
@@ -74,6 +75,17 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
             <Settings size={12} />
             <span className="hidden sm:inline">Admin</span>
           </button>
+          <button
+            onClick={() => navigate('/history')}
+            className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs transition-colors ${
+              isHistory
+                ? 'bg-white/20 text-white'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <History size={12} />
+            <span className="hidden sm:inline">History</span>
+          </button>
         </div>
       </div>
 
@@ -94,18 +106,6 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, useRealA
         <span className="text-white/50 text-xs hidden md:inline">
           {formatTime(lastSyncTime)}
         </span>
-        <button
-          onClick={onApiToggle}
-          className={`p-1 transition-colors flex items-center gap-1 ${
-            useRealApi
-              ? 'text-green-300 hover:text-green-200'
-              : 'text-white/50 hover:text-white'
-          }`}
-          title={useRealApi ? '使用模拟数据' : '使用真实API'}
-        >
-          {useRealApi ? <Database size={14} /> : <Server size={14} />}
-          <span className="text-xs hidden md:inline">{useRealApi ? '真实' : '模拟'}</span>
-        </button>
         <button
           onClick={onRefresh}
           className="p-1 text-white/70 hover:text-white transition-colors"

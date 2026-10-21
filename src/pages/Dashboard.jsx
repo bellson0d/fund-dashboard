@@ -8,6 +8,7 @@ import SortableCard from '../components/SortableCard'
 import { fetchFundData } from '../services/api'
 import { fetchFundsRealData, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
+import { logChange } from '../services/portfolioHistory'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 
@@ -143,10 +144,13 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
     setActiveId(null)
     const { active, over } = event
     if (over && active.id !== over.id) {
+      const oldIndex = fundCodes.indexOf(active.id)
+      const newIndex = fundCodes.indexOf(over.id)
+      logChange({ type: 'fund', action: 'reorder', code: active.id, name: fundMap[active.id]?.name || active.id, from: oldIndex, to: newIndex })
       setFundCodes((items) => {
-        const oldIndex = items.indexOf(active.id)
-        const newIndex = items.indexOf(over.id)
-        return arrayMove(items, oldIndex, newIndex)
+        const o = items.indexOf(active.id)
+        const n = items.indexOf(over.id)
+        return arrayMove(items, o, n)
       })
     }
   }

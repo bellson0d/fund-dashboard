@@ -9,15 +9,12 @@ const stockSDK = new StockSDK({ timeout: 15000 })
 // 持仓文件请求限流：东财按基金代码分文件无法合并，用限流器控制并发
 const limitHoldings = createLimiter(4)
 
-// 批量获取基金净值/名称/涨跌 + 持仓
-// - 净值/名称/涨跌：一次批量行情请求取回全部（原先每只基金一次，N -> 1）
-// - 持仓：东财按基金代码分文件，逐只请求但经限流器串行化
-// - 持仓股票的名称/涨跌补全交由调用方（Dashboard）的全局 batchFetchStockData 统一处理
-export async function fetchFundsRealData(fundCodes) {
-  if (!fundCodes || fundCodes.length === 0) return []
-
-  // 1) 批量行情：一次取回全部基金的名称/净值/涨跌
+// 批量获取基金行情（名称/净值/涨跌），返回 code -> FundQuote 的 map
+// 一次请求取回全部基金（原先每只一次，N -> 1）
+export async function fetchFundQuotesMap(fundCodes) {
   const quoteMap = {}
+  if (!fundCodes || fundCodes.length === 0) return quoteMap
+
   try {
     const quotes = await stockSDK.quotes.fund(fundCodes)
     quotes.forEach((q, i) => {
@@ -27,6 +24,18 @@ export async function fetchFundsRealData(fundCodes) {
   } catch (error) {
     console.warn('Failed to fetch fund quotes:', error?.message)
   }
+  return quoteMap
+}
+
+// 批量获取基金净值/名称/涨跌 + 持仓
+// - 净值/名称/涨跌：复用 fetchFundQuotesMap
+// - 持仓：东财按基金代码分文件，逐只请求但经限流器串行化
+// - 持仓股票的名称/涨跌补全交由调用方（Dashboard）的全局 batchFetchStockData 统一处理
+export async function fetchFundsRealData(fundCodes) {
+  if (!fundCodes || fundCodes.length === 0) return []
+
+  // 1) 批量行情
+  const quoteMap = await fetchFundQuotesMap(fundCodes)
 
   // 2) 逐只获取持仓（带并发限流）
   const holdingsList = await Promise.all(

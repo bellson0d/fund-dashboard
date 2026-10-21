@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Stock from './pages/Stock'
 import Admin from './pages/Admin'
+import History from './pages/History'
 
 function App() {
   const location = useLocation()
@@ -71,14 +72,13 @@ function App() {
       onSearchChange={setSearchQuery}
       onRefresh={handleRefresh}
       lastSyncTime={lastSyncTime}
-      useRealApi={useRealApi}
-      onApiToggle={handleApiToggle}
     >
       <Routes>
         <Route path="/" element={<Navigate to="/fund" replace />} />
         <Route path="/fund" element={<Dashboard searchQuery={searchQuery} refreshKey={refreshKey} useRealApi={useRealApi} />} />
         <Route path="/stock" element={<Stock searchQuery={searchQuery} refreshKey={refreshKey} />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<Admin useRealApi={useRealApi} onApiToggle={handleApiToggle} />} />
+        <Route path="/history" element={<History />} />
       </Routes>
     </Layout>
   )

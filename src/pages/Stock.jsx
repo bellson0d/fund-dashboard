@@ -7,6 +7,7 @@ import StockCard from '../components/StockCard'
 import SortableCard from '../components/SortableCard'
 import { batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
+import { logChange } from '../services/portfolioHistory'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultStockCodes } from '../data/stockData'
 
@@ -94,10 +95,13 @@ function Stock({ searchQuery, refreshKey }) {
     setActiveId(null)
     const { active, over } = event
     if (over && active.id !== over.id) {
+      const oldIndex = stockCodes.indexOf(active.id)
+      const newIndex = stockCodes.indexOf(over.id)
+      logChange({ type: 'stock', action: 'reorder', code: active.id, name: stockMap[active.id]?.name || active.id, from: oldIndex, to: newIndex })
       setStockCodes((items) => {
-        const oldIndex = items.indexOf(active.id)
-        const newIndex = items.indexOf(over.id)
-        return arrayMove(items, oldIndex, newIndex)
+        const o = items.indexOf(active.id)
+        const n = items.indexOf(over.id)
+        return arrayMove(items, o, n)
       })
     }
   }

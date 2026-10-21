@@ -1,6 +1,6 @@
 // 数据管理页 - 添加/删除/排序基金和股票
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, X, ChevronUp, ChevronDown, Save, RefreshCw, Loader2 } from 'lucide-react'
+import { Plus, X, ChevronUp, ChevronDown, Database, Server, RefreshCw, Loader2 } from 'lucide-react'
 import { StockSDK } from 'stock-sdk'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
@@ -8,6 +8,7 @@ import { defaultStockCodes } from '../data/stockData'
 import { getFundList, searchFunds, getCacheStatus as getFundCacheStatus, clearFundListCache } from '../services/fundListService'
 import { searchStocks as searchStocksAPI } from '../services/stockSearchService'
 import { recordAddition } from '../services/addedInfo'
+import { logChange } from '../services/portfolioHistory'
 
 const stockSDK = new StockSDK({ timeout: 15000 })
 
@@ -85,7 +86,7 @@ async function fetchMissingFundNames(codes) {
   return result
 }
 
-function Admin() {
+function Admin({ useRealApi, onApiToggle }) {
   const [adminTab, setAdminTab] = useState('fund')
   
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
@@ -93,7 +94,6 @@ function Admin() {
   
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [saved, setSaved] = useState(false)
   
   const [fundList, setFundList] = useState([])
   const [stockSearchResults, setStockSearchResults] = useState([])
@@ -197,10 +197,14 @@ function Admin() {
 
   const addItem = (code) => {
     setCurrentCodes([...currentCodes, code])
-    setSaved(false)
     // 记录实际添加时间，供"添加后涨幅"使用
     recordAddition(adminTab, code)
-    
+
+    const name = adminTab === 'stock'
+      ? filteredItems.find(item => item.code === code)?.name
+      : getItemInfo(code)?.name
+    logChange({ type: adminTab, action: 'add', code, name: name || code })
+
     if (adminTab === 'stock') {
       const stockInfo = filteredItems.find(item => item.code === code)
       if (stockInfo) {
@@ -213,34 +217,31 @@ function Admin() {
   }
 
   const removeItem = (code) => {
+    logChange({ type: adminTab, action: 'remove', code, name: getItemInfo(code)?.name || code })
     setCurrentCodes(currentCodes.filter(c => c !== code))
-    setSaved(false)
   }
 
   const moveUp = (index) => {
     if (index === 0) return
+    const code = currentCodes[index]
     const newCodes = [...currentCodes]
     ;[newCodes[index], newCodes[index - 1]] = [newCodes[index - 1], newCodes[index]]
     setCurrentCodes(newCodes)
-    setSaved(false)
+    logChange({ type: adminTab, action: 'reorder', code, name: getItemInfo(code)?.name || code, from: index, to: index - 1 })
   }
 
   const moveDown = (index) => {
     if (index === currentCodes.length - 1) return
+    const code = currentCodes[index]
     const newCodes = [...currentCodes]
     ;[newCodes[index], newCodes[index + 1]] = [newCodes[index + 1], newCodes[index]]
     setCurrentCodes(newCodes)
-    setSaved(false)
-  }
-
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    logChange({ type: adminTab, action: 'reorder', code, name: getItemInfo(code)?.name || code, from: index, to: index + 1 })
   }
 
   const handleReset = () => {
     setCurrentCodes(defaultCodes)
-    setSaved(false)
+    logChange({ type: adminTab, action: 'reset' })
   }
 
   const handleRefreshCache = () => {
@@ -303,21 +304,22 @@ function Admin() {
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
+            onClick={onApiToggle}
+            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${
+              useRealApi
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            title={useRealApi ? '当前使用真实API，点击切换为模拟数据' : '当前使用模拟数据，点击切换为真实API'}
+          >
+            {useRealApi ? <Database size={12} /> : <Server size={12} />}
+            {useRealApi ? '真实' : '模拟'}
+          </button>
+          <button
             onClick={handleReset}
             className="flex-1 sm:flex-none px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
           >
             重置默认
-          </button>
-          <button
-            onClick={handleSave}
-            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center justify-center gap-1 ${
-              saved 
-                ? 'bg-green-500 text-white' 
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            <Save size={12} />
-            {saved ? '已保存' : '保存'}
           </button>
           <button
             onClick={adminTab === 'fund' ? handleAddFund : handleAddStock}
