@@ -120,6 +120,7 @@
 |---|---|
 | 部署后登录立刻失效 | `APP_ORIGIN` 与实际访问域名不一致；Cookie 带了 `Secure` 但用 http 访问 |
 | 镜像拉取失败 / ImagePullBackOff | GHCR 包仍是 Private；在 Packages 里改成 Public，或在 ClawCloud 配置镜像仓库凭据 |
+| Actions 页看不到工作流 | 仓库 Actions 曾被关闭；Settings → Actions → General 选 Allow all 后，需推送一次**新增/修改工作流文件**的提交才会重新注册 |
 | `/api/healthz` 500 | 卷未挂载或目录不可写；检查 `DATA_DIR` 是否指向 `/data` |
 | SQLite 报 `disk I/O error` / 无法打开 | 网络卷不支持 WAL 共享内存，设置 `SQLITE_JOURNAL_MODE=DELETE` |
 | 数据在重新部署后消失 | 卷没有挂到 `/data`，或覆盖了旧卷 |
