@@ -9,14 +9,18 @@ import ContextMenu from '../components/ContextMenu'
 import { batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { logChange } from '../services/portfolioHistory'
+import { readCache, writeCache } from '../services/memoryCache'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultStockCodes } from '../data/stockData'
 
 function Stock({ searchQuery, refreshKey }) {
   const [stockCodes, setStockCodes] = useLocalStorage('stockCodes', defaultStockCodes)
-  const [stocks, setStocks] = useState([])
+  // 首次进入会话时无缓存 -> 显示骨架屏；之后切回沿用上次数据，在后台静默刷新
+  const cachedStocks = readCache('stocks')
+  const [stocks, setStocks] = useState(() => cachedStocks || [])
   const [apiError, setApiError] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !cachedStocks)
+  const [hasLoaded, setHasLoaded] = useState(() => !!cachedStocks)
   const [activeId, setActiveId] = useState(null)
   // 右键菜单：记录坐标与被点击的股票代码
   const [menu, setMenu] = useState(null)
@@ -27,6 +31,7 @@ function Stock({ searchQuery, refreshKey }) {
     if (stockCodes.length === 0) {
       setStocks([])
       setIsLoading(false)
+      setHasLoaded(true)
       return
     }
 
@@ -61,6 +66,9 @@ function Stock({ searchQuery, refreshKey }) {
         return { ...stock, addedAt: info.addedAt, addedDays, addedGain }
       }))
 
+      // 先缓存完整数据（不含搜索过滤），供下次切回时立即渲染
+      writeCache('stocks', validStocks)
+
       if (searchQuery) {
         const lowerQuery = searchQuery.toLowerCase()
         const filtered = validStocks.filter(stock =>
@@ -76,6 +84,7 @@ function Stock({ searchQuery, refreshKey }) {
       setApiError(true)
     } finally {
       setIsLoading(false)
+      setHasLoaded(true)
     }
   }, [stockCodes, searchQuery])
 
@@ -110,8 +119,8 @@ function Stock({ searchQuery, refreshKey }) {
   }
 
   const activeStock = activeId ? stockMap[activeId] : null
-  // 仅在"有数据待加载"时显示骨架屏：无股票时直接显示空状态
-  const showSkeleton = isLoading && stockCodes.length > 0
+  // 仅在首次加载（会话内无缓存）时显示骨架屏；切回时保留旧数据，后台静默刷新
+  const showSkeleton = isLoading && !hasLoaded && stockCodes.length > 0
 
   const openMenu = (e, code) => {
     e.preventDefault()

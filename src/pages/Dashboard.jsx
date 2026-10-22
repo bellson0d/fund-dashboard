@@ -10,14 +10,18 @@ import { fetchFundData } from '../services/api'
 import { fetchFundsRealData, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { logChange } from '../services/portfolioHistory'
+import { readCache, writeCache } from '../services/memoryCache'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { defaultFundCodes } from '../data/mockData'
 
 function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
-  const [funds, setFunds] = useState([])
+  // 首次进入会话时无缓存 -> 显示骨架屏；之后切回沿用上次数据，在后台静默刷新
+  const cachedFunds = readCache('funds')
+  const [funds, setFunds] = useState(() => cachedFunds || [])
   const [apiError, setApiError] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !cachedFunds)
+  const [hasLoaded, setHasLoaded] = useState(() => !!cachedFunds)
   const [activeId, setActiveId] = useState(null)
   // 右键菜单：记录坐标与被点击的基金代码
   const [menu, setMenu] = useState(null)
@@ -28,6 +32,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
     if (fundCodes.length === 0) {
       setFunds([])
       setIsLoading(false)
+      setHasLoaded(true)
       return
     }
 
@@ -113,6 +118,9 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
         return { ...fund, addedAt: info.addedAt, addedDays, addedGain }
       }))
 
+      // 先缓存完整数据（不含搜索过滤），供下次切回时立即渲染
+      writeCache('funds', validFunds)
+
       if (searchQuery) {
         const lowerQuery = searchQuery.toLowerCase()
         const filtered = validFunds.filter(fund =>
@@ -125,6 +133,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
       }
     } finally {
       setIsLoading(false)
+      setHasLoaded(true)
     }
   }, [fundCodes, searchQuery, useRealApi])
 
@@ -159,8 +168,8 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   }
 
   const activeFund = activeId ? fundMap[activeId] : null
-  // 仅在"有数据待加载"时显示骨架屏：无基金时直接显示空状态
-  const showSkeleton = isLoading && fundCodes.length > 0
+  // 仅在首次加载（会话内无缓存）时显示骨架屏；切回时保留旧数据，后台静默刷新
+  const showSkeleton = isLoading && !hasLoaded && fundCodes.length > 0
 
   const openMenu = (e, code) => {
     e.preventDefault()
