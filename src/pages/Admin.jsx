@@ -94,7 +94,7 @@ function Admin({ useRealApi, onApiToggle }) {
   const [stockCodes, setStockCodes] = usePortfolioState('stockCodes')
   const [fundAddedMeta, setFundAddedMeta] = usePortfolioState('fundAddedMeta')
   const [stockAddedMeta, setStockAddedMeta] = usePortfolioState('stockAddedMeta')
-  const { reload } = usePortfolio()
+  const { reload, flush } = usePortfolio()
   
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -268,6 +268,8 @@ function Admin({ useRealApi, onApiToggle }) {
     setIsImporting(true)
     try {
       const text = await file.text()
+      // 先等在途的持仓同步完成，避免旧数据晚到覆盖导入结果
+      await flush()
       const result = await importHistory(text, { mode: 'merge' })
       await reload()
       window.alert(

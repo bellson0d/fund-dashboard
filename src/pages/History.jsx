@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Camera, Download, Upload, Trash2, ChevronDown, ChevronUp, Loader2, Pencil, Check, X, ListChecks, History as HistoryIcon } from 'lucide-react'
 import { usePortfolioState } from '../hooks/usePortfolioState'
+import { usePortfolio } from '../context/PortfolioContext'
 import { fetchFundQuotesMap, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import {
@@ -37,6 +38,7 @@ function History() {
   const [fundInfoCache] = usePortfolioState('fundInfoCache')
   const [fundAddedMeta] = usePortfolioState('fundAddedMeta')
   const [stockAddedMeta] = usePortfolioState('stockAddedMeta')
+  const { flush, reload } = usePortfolio()
 
   const [historyTab, setHistoryTab] = useState('snapshots')
   const [snapshots, setSnapshots] = useState([])
@@ -179,7 +181,9 @@ function History() {
     if (!file) return
 
     try {
+      await flush()
       const result = await importHistory(await file.text(), { mode: 'merge' })
+      await reload()
       refresh()
       window.alert(`导入完成：合并 ${result.snapshots} 条快照、${result.changes} 条变更记录`)
     } catch (error) {

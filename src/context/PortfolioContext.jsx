@@ -105,6 +105,11 @@ export function PortfolioProvider({ children }) {
     applyData(await api.get('/portfolio'))
   }, [applyData])
 
+  // 等待在途的持仓同步落地（导入/覆盖前调用，避免旧数据晚到覆盖导入结果）
+  const flush = useCallback(async () => {
+    await Promise.all(TYPES.map(type => chains.current[type].catch(() => {})))
+  }, [])
+
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 gap-3">
@@ -131,7 +136,7 @@ export function PortfolioProvider({ children }) {
   }
 
   return (
-    <PortfolioContext.Provider value={{ data, setSlice, reload }}>
+    <PortfolioContext.Provider value={{ data, setSlice, reload, flush }}>
       {children}
     </PortfolioContext.Provider>
   )
