@@ -22,8 +22,9 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/pingzhong/, '/pingzhongdata'),
       },
       '/api/fundlist': {
-        target: 'http://fund.eastmoney.com',
+        target: 'https://fund.eastmoney.com',
         changeOrigin: true,
+        followRedirects: true,
         rewrite: (path) => path.replace(/^\/api\/fundlist/, '/js/fundcode_search.js'),
       },
     },

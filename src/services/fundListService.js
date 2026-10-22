@@ -13,7 +13,9 @@ export async function getFundList(forceRefresh = false) {
   }
 
   try {
-    const response = await fetch('/api/fundlist')
+    // no-store：避免浏览器复用旧缓存（此前代理曾返回 301，Chrome 会长期缓存重定向，
+    // 导致请求直接跳到跨域的上游并失败）；列表本身已在 localStorage 缓存 24 小时
+    const response = await fetch('/api/fundlist', { cache: 'no-store' })
     const text = await response.text()
 
     const match = text.match(/var r = (\[.*\])/)

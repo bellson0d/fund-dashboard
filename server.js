@@ -31,9 +31,12 @@ app.use('/api/pingzhong', createProxyMiddleware({
 }));
 
 // 东方财富基金代码列表 API
+// 注意：上游会把 http 重定向到 https，必须直连 https 并跟随重定向，
+// 否则 301 会被转发给浏览器，跨域跟随跳转会被 CORS 拦截导致 fetch 失败
 app.use('/api/fundlist', createProxyMiddleware({
-  target: 'http://fund.eastmoney.com',
+  target: 'https://fund.eastmoney.com',
   changeOrigin: true,
+  followRedirects: true,
   pathRewrite: (path) => '/js/fundcode_search.js'
 }));
 
