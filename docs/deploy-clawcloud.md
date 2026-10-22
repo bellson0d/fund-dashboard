@@ -31,6 +31,8 @@
 >      产出 `ghcr.io/<你的账号>/fund-dashboard:latest`。
 >   4. 打开 GitHub 仓库 → **Packages** → 该镜像 → **Package settings → Change visibility → Public**，
 >      否则 ClawCloud 无法匿名拉取（也可以在 ClawCloud 里配置镜像仓库凭据）。
+>      私有镜像的凭据：Image 选 **Private**，Username 填 GitHub 用户名，Password 填
+>      **Personal Access Token**（classic 勾选 `read:packages`；fine-grained 需 `Packages: Read`）。
 >   5. 部署时选择 `feat/cloud-deploy`；上线验证通过、合并 master 后，再改为推送并部署 `master`。
 > - **方式 B（本机 Docker 可用时）** 本地构建并推到 ClawCloud 私有仓库：
 >   ```bash
