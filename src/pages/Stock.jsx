@@ -1,5 +1,5 @@
 // 股票看板 - 展示已添加股票的实时价格和涨跌幅，支持拖拽排序
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { Loader2, Trash2 } from 'lucide-react'
@@ -10,11 +10,15 @@ import { batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { logChange } from '../services/portfolioHistory'
 import { readCache, writeCache } from '../services/memoryCache'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { usePortfolioState } from '../hooks/usePortfolioState'
 import { defaultStockCodes } from '../data/stockData'
 
 function Stock({ searchQuery, refreshKey }) {
-  const [stockCodes, setStockCodes] = useLocalStorage('stockCodes', defaultStockCodes)
+  const [stockCodes, setStockCodes] = usePortfolioState('stockCodes')
+  const [stockAddedMeta, setStockAddedMeta] = usePortfolioState('stockAddedMeta')
+  // 添加信息在异步流程中会多次写入，用 ref 保持最新值，避免重复触发数据加载
+  const metaRef = useRef(stockAddedMeta)
+  metaRef.current = stockAddedMeta
   // 首次进入会话时无缓存 -> 显示骨架屏；之后切回沿用上次数据，在后台静默刷新
   const cachedStocks = readCache('stocks')
   const [stocks, setStocks] = useState(() => cachedStocks || [])
@@ -52,14 +56,22 @@ function Stock({ searchQuery, refreshKey }) {
         return { code, name: code, price: 0, change: 0 }
       })
 
-      // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史日 K）
-      const addedMeta = ensureAddedAt('stock', stockCodes, defaultStockCodes)
+      // 计算"添加后涨幅 / 添加时间"（添加时间存在服务端，基准价按需取一次历史日 K）
+      const addedMeta = ensureAddedAt('stock', stockCodes, defaultStockCodes, metaRef.current)
+      if (addedMeta !== metaRef.current) {
+        metaRef.current = addedMeta
+        setStockAddedMeta(addedMeta)
+      }
       validStocks = await Promise.all(validStocks.map(async (stock) => {
         const info = addedMeta[stock.code]
         if (!info) return stock
 
         const addedDays = formatAddedDuration(info.addedAt)
-        const basePrice = await resolveBasePrice('stock', stock.code, info.addedAt)
+        const { price: basePrice, patch } = await resolveBasePrice('stock', stock.code, info.addedAt, info)
+        if (patch) {
+          metaRef.current = { ...metaRef.current, [stock.code]: { ...metaRef.current[stock.code], ...patch } }
+          setStockAddedMeta(prev => ({ ...prev, [stock.code]: { ...prev[stock.code], ...patch } }))
+        }
         const addedGain = basePrice && stock.price
           ? (stock.price / basePrice - 1) * 100
           : null

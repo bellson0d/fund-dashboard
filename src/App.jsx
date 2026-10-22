@@ -1,4 +1,4 @@
-// 应用入口 - 路由定义 / 全局状态 / 定时刷新（页面不可见时自动暂停）
+// 应用入口 - 登录门禁 / 路由定义 / 全局状态 / 定时刷新（页面不可见时自动暂停）
 import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
@@ -6,8 +6,22 @@ import Dashboard from './pages/Dashboard'
 import Stock from './pages/Stock'
 import Admin from './pages/Admin'
 import History from './pages/History'
+import Login from './pages/Login'
+import { useAuth } from './context/AuthContext'
+import { PortfolioProvider } from './context/PortfolioContext'
 
-function App() {
+function FullScreenLoading({ text }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        {text}
+      </div>
+    </div>
+  )
+}
+
+function Workspace() {
   const location = useLocation()
   const [searchQuery, setSearchQuery] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -81,6 +95,19 @@ function App() {
         <Route path="/history" element={<History />} />
       </Routes>
     </Layout>
+  )
+}
+
+function App() {
+  const { user, loading } = useAuth()
+
+  if (loading) return <FullScreenLoading text="正在校验登录状态..." />
+  if (!user) return <Login />
+
+  return (
+    <PortfolioProvider>
+      <Workspace />
+    </PortfolioProvider>
   )
 }
 

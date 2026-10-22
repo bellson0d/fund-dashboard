@@ -1,5 +1,5 @@
 // 基金看板 - 展示已添加基金的净值和持仓，支持拖拽排序
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { Loader2, Trash2 } from 'lucide-react'
@@ -11,11 +11,15 @@ import { fetchFundsRealData, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { logChange } from '../services/portfolioHistory'
 import { readCache, writeCache } from '../services/memoryCache'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { usePortfolioState } from '../hooks/usePortfolioState'
 import { defaultFundCodes } from '../data/mockData'
 
 function Dashboard({ searchQuery, refreshKey, useRealApi }) {
-  const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
+  const [fundCodes, setFundCodes] = usePortfolioState('fundCodes')
+  const [fundAddedMeta, setFundAddedMeta] = usePortfolioState('fundAddedMeta')
+  // 添加信息在异步流程中会多次写入，用 ref 保持最新值，避免重复触发数据加载
+  const metaRef = useRef(fundAddedMeta)
+  metaRef.current = fundAddedMeta
   // 首次进入会话时无缓存 -> 显示骨架屏；之后切回沿用上次数据，在后台静默刷新
   const cachedFunds = readCache('funds')
   const [funds, setFunds] = useState(() => cachedFunds || [])
@@ -102,8 +106,12 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
         validFunds = mockResults.filter(Boolean)
       }
 
-      // 计算"添加后涨幅 / 添加时间"（添加时间持久化在 localStorage，基准价按需取一次历史净值）
-      const addedMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes)
+      // 计算"添加后涨幅 / 添加时间"（添加时间存在服务端，基准价按需取一次历史净值）
+      const addedMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes, metaRef.current)
+      if (addedMeta !== metaRef.current) {
+        metaRef.current = addedMeta
+        setFundAddedMeta(addedMeta)
+      }
       validFunds = await Promise.all(validFunds.map(async (fund) => {
         const info = addedMeta[fund.code]
         if (!info) return fund
@@ -111,7 +119,11 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
         const addedDays = formatAddedDuration(info.addedAt)
         if (!usingReal) return { ...fund, addedAt: info.addedAt, addedDays }
 
-        const basePrice = await resolveBasePrice('fund', fund.code, info.addedAt)
+        const { price: basePrice, patch } = await resolveBasePrice('fund', fund.code, info.addedAt, info)
+        if (patch) {
+          metaRef.current = { ...metaRef.current, [fund.code]: { ...metaRef.current[fund.code], ...patch } }
+          setFundAddedMeta(prev => ({ ...prev, [fund.code]: { ...prev[fund.code], ...patch } }))
+        }
         const addedGain = basePrice && fund.netValue
           ? (fund.netValue / basePrice - 1) * 100
           : null

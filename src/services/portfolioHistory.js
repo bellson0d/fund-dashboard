@@ -1,125 +1,70 @@
 // 历史快照与变更记录服务
 // - 快照：某个时间点的完整持仓清单 + 当时行情，供日后投资回顾
 // - 变更记录：新增/删除/排序等操作的自动 log
-// 数据持久化在 localStorage，支持导出/导入 JSON 备份
-
-const SNAPSHOTS_KEY = 'portfolioSnapshots'
-const CHANGES_KEY = 'portfolioChangeLog'
-const MAX_SNAPSHOTS = 100
-const MAX_CHANGES = 500
-
-function readStore(key) {
-  try {
-    const raw = window.localStorage.getItem(key)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function writeStore(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-  } catch (error) {
-    console.error('Failed to write portfolio history:', error)
-  }
-}
-
-function makeId(prefix) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-}
-
-function dedupeById(list) {
-  const map = new Map()
-  list.forEach(item => {
-    if (item && item.id && !map.has(item.id)) map.set(item.id, item)
-  })
-  return [...map.values()]
-}
+// 数据持久化在服务端 SQLite（按用户隔离），支持导出/导入 JSON 备份
+import { api } from '../api/client'
 
 // ---------- 快照 ----------
 
-export function listSnapshots() {
-  return readStore(SNAPSHOTS_KEY)
+export async function listSnapshots() {
+  const data = await api.get('/snapshots')
+  return Array.isArray(data?.snapshots) ? data.snapshots : []
 }
 
-// 新增快照（最新的排在最前）
-export function addSnapshot({ note = '', funds = [], stocks = [] }) {
-  const snapshot = {
-    id: makeId('snap'),
-    savedAt: new Date().toISOString(),
-    note,
-    funds,
-    stocks
-  }
-  const next = [snapshot, ...listSnapshots()].slice(0, MAX_SNAPSHOTS)
-  writeStore(SNAPSHOTS_KEY, next)
-  return snapshot
+// 新增快照（最新的排在最前，服务端自动裁剪到 100 条）
+export async function addSnapshot({ note = '', funds = [], stocks = [] }) {
+  const data = await api.post('/snapshots', { note, funds, stocks })
+  return data?.snapshot || null
 }
 
-export function updateSnapshotNote(id, note) {
-  writeStore(SNAPSHOTS_KEY, listSnapshots().map(s => (s.id === id ? { ...s, note } : s)))
+export async function updateSnapshotNote(id, note) {
+  await api.patch(`/snapshots/${encodeURIComponent(id)}`, { note })
 }
 
-export function deleteSnapshot(id) {
-  writeStore(SNAPSHOTS_KEY, listSnapshots().filter(s => s.id !== id))
+export async function deleteSnapshot(id) {
+  await api.del(`/snapshots/${encodeURIComponent(id)}`)
 }
 
-export function clearSnapshots() {
-  writeStore(SNAPSHOTS_KEY, [])
+export async function clearSnapshots() {
+  await api.del('/snapshots')
 }
 
 // ---------- 变更记录 ----------
 
-export function listChanges() {
-  return readStore(CHANGES_KEY)
+export async function listChanges() {
+  const data = await api.get('/changes')
+  return Array.isArray(data?.changes) ? data.changes : []
 }
 
-// 记录一条变更（最新的排在最前）
+// 记录一条变更（失败不影响主流程，仅打印警告）
 export function logChange(entry) {
-  const record = {
-    id: makeId('chg'),
-    at: new Date().toISOString(),
-    ...entry
-  }
-  const next = [record, ...listChanges()].slice(0, MAX_CHANGES)
-  writeStore(CHANGES_KEY, next)
-  return record
+  api.post('/changes', entry).catch(error => {
+    console.warn('记录变更失败:', error?.message)
+  })
 }
 
-export function clearChanges() {
-  writeStore(CHANGES_KEY, [])
+export async function clearChanges() {
+  await api.del('/changes')
 }
 
 // ---------- 导出 / 导入 ----------
 
-export function exportHistory() {
-  return JSON.stringify({
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    snapshots: listSnapshots(),
-    changes: listChanges()
-  }, null, 2)
+// 导出全量数据（v2：含持仓列表、名称缓存、添加信息、快照与变更）
+export async function exportHistory() {
+  const data = await api.get('/export')
+  return JSON.stringify(data, null, 2)
 }
 
 // mode: 'merge' 合并去重（默认） | 'replace' 覆盖
-export function importHistory(json, { mode = 'merge' } = {}) {
+export async function importHistory(json, { mode = 'merge' } = {}) {
   const data = typeof json === 'string' ? JSON.parse(json) : json
-  const snapshots = Array.isArray(data?.snapshots) ? data.snapshots : []
-  const changes = Array.isArray(data?.changes) ? data.changes : []
-
-  if (mode === 'replace') {
-    writeStore(SNAPSHOTS_KEY, snapshots.slice(0, MAX_SNAPSHOTS))
-    writeStore(CHANGES_KEY, changes.slice(0, MAX_CHANGES))
-  } else {
-    writeStore(SNAPSHOTS_KEY, dedupeById([...listSnapshots(), ...snapshots])
-      .sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''))
-      .slice(0, MAX_SNAPSHOTS))
-    writeStore(CHANGES_KEY, dedupeById([...listChanges(), ...changes])
-      .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
-      .slice(0, MAX_CHANGES))
+  const result = await api.post('/import', { mode, data })
+  const counts = result?.counts || {}
+  return {
+    snapshots: counts.snapshots || 0,
+    changes: counts.changes || 0,
+    fund: counts.fund || 0,
+    stock: counts.stock || 0,
+    info: counts.info || { fund: 0, stock: 0 }
   }
-
-  return { snapshots: snapshots.length, changes: changes.length }
 }

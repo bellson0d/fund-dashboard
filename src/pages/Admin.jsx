@@ -1,14 +1,15 @@
 // 数据管理页 - 添加/删除/排序基金和股票
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, X, ChevronUp, ChevronDown, Database, Server, RefreshCw, Loader2 } from 'lucide-react'
+import { Plus, X, ChevronUp, ChevronDown, Database, Server, RefreshCw, Loader2, Upload } from 'lucide-react'
 import { StockSDK } from 'stock-sdk'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { usePortfolioState } from '../hooks/usePortfolioState'
+import { usePortfolio } from '../context/PortfolioContext'
 import { defaultFundCodes } from '../data/mockData'
 import { defaultStockCodes } from '../data/stockData'
 import { getFundList, searchFunds, getCacheStatus as getFundCacheStatus, clearFundListCache } from '../services/fundListService'
 import { searchStocks as searchStocksAPI } from '../services/stockSearchService'
 import { recordAddition } from '../services/addedInfo'
-import { logChange } from '../services/portfolioHistory'
+import { logChange, importHistory } from '../services/portfolioHistory'
 
 const stockSDK = new StockSDK({ timeout: 15000 })
 
@@ -89,20 +90,25 @@ async function fetchMissingFundNames(codes) {
 function Admin({ useRealApi, onApiToggle }) {
   const [adminTab, setAdminTab] = useState('fund')
   
-  const [fundCodes, setFundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
-  const [stockCodes, setStockCodes] = useLocalStorage('stockCodes', defaultStockCodes)
+  const [fundCodes, setFundCodes] = usePortfolioState('fundCodes')
+  const [stockCodes, setStockCodes] = usePortfolioState('stockCodes')
+  const [fundAddedMeta, setFundAddedMeta] = usePortfolioState('fundAddedMeta')
+  const [stockAddedMeta, setStockAddedMeta] = usePortfolioState('stockAddedMeta')
+  const { reload } = usePortfolio()
   
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   
   const [fundList, setFundList] = useState([])
   const [stockSearchResults, setStockSearchResults] = useState([])
-  const [stockInfoCache, setStockInfoCache] = useLocalStorage('stockInfoCache', {})
-  const [fundInfoCache, setFundInfoCache] = useLocalStorage('fundInfoCache', {})
+  const [stockInfoCache, setStockInfoCache] = usePortfolioState('stockInfoCache')
+  const [fundInfoCache, setFundInfoCache] = usePortfolioState('fundInfoCache')
   const [isLoading, setIsLoading] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [fundCacheStatus, setFundCacheStatus] = useState(null)
   
   const searchTimeoutRef = useRef(null)
+  const migrationInputRef = useRef(null)
 
   useEffect(() => {
     loadFundList()
@@ -197,9 +203,10 @@ function Admin({ useRealApi, onApiToggle }) {
     : stockSearchResults
 
   const addItem = (code) => {
-    setCurrentCodes([...currentCodes, code])
+    setCurrentCodes(prev => [...prev, code])
     // 记录实际添加时间，供"添加后涨幅"使用
-    recordAddition(adminTab, code)
+    const setAddedMeta = adminTab === 'fund' ? setFundAddedMeta : setStockAddedMeta
+    setAddedMeta(prev => recordAddition(prev, code))
 
     const name = adminTab === 'stock'
       ? filteredItems.find(item => item.code === code)?.name
@@ -249,6 +256,29 @@ function Admin({ useRealApi, onApiToggle }) {
     if (adminTab === 'fund') {
       clearFundListCache()
       loadFundList(true)
+    }
+  }
+
+  // 迁移旧版本地数据：选择旧站导出的 JSON，合并进当前账号
+  const handleMigrationFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setIsImporting(true)
+    try {
+      const text = await file.text()
+      const result = await importHistory(text, { mode: 'merge' })
+      await reload()
+      window.alert(
+        `导入完成：基金 ${result.fund} 只、股票 ${result.stock} 只、` +
+        `快照 ${result.snapshots} 条、变更记录 ${result.changes} 条`
+      )
+    } catch (error) {
+      console.error('迁移本地数据失败:', error)
+      window.alert(`导入失败：${error?.message || '文件格式不正确'}`)
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -315,6 +345,22 @@ function Admin({ useRealApi, onApiToggle }) {
           >
             {useRealApi ? <Database size={12} /> : <Server size={12} />}
             {useRealApi ? '真实' : '模拟'}
+          </button>
+          <input
+            ref={migrationInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleMigrationFile}
+            className="hidden"
+          />
+          <button
+            onClick={() => migrationInputRef.current?.click()}
+            disabled={isImporting}
+            className="flex-1 sm:flex-none px-3 py-1.5 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 disabled:opacity-60"
+            title="导入旧版本地数据（历史快照、变更记录、持仓列表）"
+          >
+            {isImporting ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+            迁移数据
           </button>
           <button
             onClick={handleReset}

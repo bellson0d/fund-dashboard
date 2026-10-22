@@ -1,7 +1,7 @@
 // 历史页 - 手动保存持仓快照、查看变更记录、导出/导入备份
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Camera, Download, Upload, Trash2, ChevronDown, ChevronUp, Loader2, Pencil, Check, X, ListChecks, History as HistoryIcon } from 'lucide-react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { usePortfolioState } from '../hooks/usePortfolioState'
 import { fetchFundQuotesMap, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import {
@@ -32,9 +32,11 @@ function changeColor(value) {
 }
 
 function History() {
-  const [fundCodes] = useLocalStorage('fundCodes', defaultFundCodes)
-  const [stockCodes] = useLocalStorage('stockCodes', defaultStockCodes)
-  const [fundInfoCache] = useLocalStorage('fundInfoCache', {})
+  const [fundCodes] = usePortfolioState('fundCodes')
+  const [stockCodes] = usePortfolioState('stockCodes')
+  const [fundInfoCache] = usePortfolioState('fundInfoCache')
+  const [fundAddedMeta] = usePortfolioState('fundAddedMeta')
+  const [stockAddedMeta] = usePortfolioState('stockAddedMeta')
 
   const [historyTab, setHistoryTab] = useState('snapshots')
   const [snapshots, setSnapshots] = useState([])
@@ -45,9 +47,14 @@ function History() {
   const [noteDraft, setNoteDraft] = useState('')
   const fileInputRef = useRef(null)
 
-  const refresh = useCallback(() => {
-    setSnapshots(listSnapshots())
-    setChanges(listChanges())
+  const refresh = useCallback(async () => {
+    try {
+      const [nextSnapshots, nextChanges] = await Promise.all([listSnapshots(), listChanges()])
+      setSnapshots(nextSnapshots)
+      setChanges(nextChanges)
+    } catch (error) {
+      console.warn('加载历史记录失败:', error?.message)
+    }
   }, [])
 
   useEffect(() => {
@@ -66,15 +73,17 @@ function History() {
       ])
 
       // 补齐添加时间（与看板相同的补种规则），并取各标的添加日基准价
-      const fundMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes)
-      const stockMeta = ensureAddedAt('stock', stockCodes, defaultStockCodes)
+      const fundMeta = ensureAddedAt('fund', fundCodes, defaultFundCodes, fundAddedMeta)
+      const stockMeta = ensureAddedAt('stock', stockCodes, defaultStockCodes, stockAddedMeta)
       const now = Date.now()
 
       const funds = await Promise.all(fundCodes.map(async code => {
         const q = fundQuotes[code]
         const info = fundMeta[code] || {}
         const netValue = q?.nav != null ? Number(q.nav) : null
-        const basePrice = info.addedAt ? await resolveBasePrice('fund', code, info.addedAt) : null
+        const { price: basePrice } = info.addedAt
+          ? await resolveBasePrice('fund', code, info.addedAt, info)
+          : { price: null }
         return {
           code,
           name: q?.name || fundInfoCache[code] || code,
@@ -90,7 +99,9 @@ function History() {
         const q = stockQuotes[code]
         const info = stockMeta[code] || {}
         const price = q?.price != null ? Number(q.price) : null
-        const basePrice = info.addedAt ? await resolveBasePrice('stock', code, info.addedAt) : null
+        const { price: basePrice } = info.addedAt
+          ? await resolveBasePrice('stock', code, info.addedAt, info)
+          : { price: null }
         return {
           code,
           name: q?.name || code,
@@ -102,7 +113,7 @@ function History() {
         }
       }))
 
-      addSnapshot({ funds, stocks })
+      await addSnapshot({ funds, stocks })
       refresh()
     } catch (error) {
       console.error('Failed to save snapshot:', error)
@@ -111,57 +122,70 @@ function History() {
     }
   }
 
-  const handleNoteSave = (id) => {
-    updateSnapshotNote(id, noteDraft.trim())
-    setEditingNoteId(null)
-    setNoteDraft('')
-    refresh()
+  const handleNoteSave = async (id) => {
+    try {
+      await updateSnapshotNote(id, noteDraft.trim())
+      setEditingNoteId(null)
+      setNoteDraft('')
+      refresh()
+    } catch (error) {
+      console.error('Failed to update note:', error)
+    }
   }
 
-  const handleDeleteSnapshot = (id) => {
+  const handleDeleteSnapshot = async (id) => {
     if (!window.confirm('确定删除这条快照？')) return
-    deleteSnapshot(id)
-    if (expandedId === id) setExpandedId(null)
-    refresh()
+    try {
+      await deleteSnapshot(id)
+      if (expandedId === id) setExpandedId(null)
+      refresh()
+    } catch (error) {
+      console.error('Failed to delete snapshot:', error)
+    }
   }
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (!window.confirm('确定清空全部快照与变更记录？此操作不可恢复。')) return
-    clearSnapshots()
-    clearChanges()
-    setExpandedId(null)
-    refresh()
+    try {
+      await clearSnapshots()
+      await clearChanges()
+      setExpandedId(null)
+      refresh()
+    } catch (error) {
+      console.error('Failed to clear history:', error)
+    }
   }
 
-  const handleExport = () => {
-    const json = exportHistory()
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    const stamp = new Date().toISOString().slice(0, 10)
-    a.href = url
-    a.download = `portfolio-history-${stamp}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+  const handleExport = async () => {
+    try {
+      const json = await exportHistory()
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 10)
+      a.href = url
+      a.download = `portfolio-export-${stamp}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export history:', error)
+      window.alert('导出失败，请稍后重试')
+    }
   }
 
-  const handleImportFile = (event) => {
+  const handleImportFile = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const result = importHistory(String(reader.result), { mode: 'merge' })
-        refresh()
-        window.alert(`导入完成：合并 ${result.snapshots} 条快照、${result.changes} 条变更记录`)
-      } catch (error) {
-        console.error('Failed to import history:', error)
-        window.alert('导入失败：文件格式不正确')
-      }
+    try {
+      const result = await importHistory(await file.text(), { mode: 'merge' })
+      refresh()
+      window.alert(`导入完成：合并 ${result.snapshots} 条快照、${result.changes} 条变更记录`)
+    } catch (error) {
+      console.error('Failed to import history:', error)
+      window.alert(`导入失败：${error?.message || '文件格式不正确'}`)
     }
-    reader.readAsText(file)
   }
 
   const containerClass = 'bg-white rounded-xl shadow-sm p-3'

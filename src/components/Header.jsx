@@ -1,11 +1,13 @@
-// 顶部导航栏 - 路由切换 / 搜索 / 刷新
+// 顶部导航栏 - 路由切换 / 搜索 / 刷新 / 当前用户
 import { useState } from 'react'
-import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, History } from 'lucide-react'
+import { Search, RefreshCw, TrendingUp, LayoutDashboard, Settings, ChevronDown, ChevronUp, History, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, activeTab }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
 
   const formatTime = (date) => {
     if (!date) return '--:--'
@@ -106,6 +108,16 @@ function Header({ searchQuery, onSearchChange, onRefresh, lastSyncTime, activeTa
         <span className="text-white/50 text-xs hidden md:inline">
           {formatTime(lastSyncTime)}
         </span>
+        <span className="text-white/80 text-xs hidden sm:inline-block max-w-[8rem] truncate align-middle" title={user?.username}>
+          {user?.username}
+        </span>
+        <button
+          onClick={logout}
+          className="p-1 text-white/70 hover:text-white transition-colors"
+          title="退出登录"
+        >
+          <LogOut size={14} />
+        </button>
         <button
           onClick={onRefresh}
           className="p-1 text-white/70 hover:text-white transition-colors"
