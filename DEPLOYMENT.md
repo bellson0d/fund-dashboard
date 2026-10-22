@@ -1,5 +1,8 @@
 # Fund Dashboard - 部署说明
 
+> 线上云部署（登录 + SQLite + ClawCloud Run）请看 [docs/deploy-clawcloud.md](docs/deploy-clawcloud.md)，本文档仅保留本地/PM2 运行方式。
+
+
 ## 版本信息
 - 当前版本: v0.1.0
 - 发布日期: 2025-01-22
