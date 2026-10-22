@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-export default function SortableCard({ id, children }) {
+export default function SortableCard({ id, children, onContextMenu }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
   return (
@@ -15,6 +15,7 @@ export default function SortableCard({ id, children }) {
       }}
       {...attributes}
       {...listeners}
+      onContextMenu={onContextMenu}
     >
       {children}
     </div>

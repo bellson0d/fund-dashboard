@@ -2,9 +2,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import FundCard from '../components/FundCard'
 import SortableCard from '../components/SortableCard'
+import ContextMenu from '../components/ContextMenu'
 import { fetchFundData } from '../services/api'
 import { fetchFundsRealData, batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
@@ -18,6 +19,8 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   const [apiError, setApiError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [activeId, setActiveId] = useState(null)
+  // 右键菜单：记录坐标与被点击的基金代码
+  const [menu, setMenu] = useState(null)
 
   const loadFundData = useCallback(async () => {
     setApiError(false)
@@ -159,6 +162,28 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
   // 仅在"有数据待加载"时显示骨架屏：无基金时直接显示空状态
   const showSkeleton = isLoading && fundCodes.length > 0
 
+  const openMenu = (e, code) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenu({ x: e.clientX, y: e.clientY, code })
+  }
+
+  const closeMenu = useCallback(() => setMenu(null), [])
+
+  const removeFund = (code) => {
+    const name = fundMap[code]?.name || code
+    if (!window.confirm(`确定从看板删除「${name}」？`)) return
+    setFundCodes(items => items.filter(c => c !== code))
+    logChange({ type: 'fund', action: 'remove', code, name })
+  }
+
+  // 右键菜单动作：后续新增操作直接往这里追加即可
+  const menuItems = menu
+    ? [
+        { key: 'delete', label: '删除基金', icon: Trash2, danger: true, onClick: () => removeFund(menu.code) }
+      ]
+    : []
+
   return (
     <div>
       {apiError && (
@@ -212,7 +237,7 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
                 const fund = fundMap[code]
                 if (!fund) return null
                 return (
-                  <SortableCard key={code} id={code}>
+                  <SortableCard key={code} id={code} onContextMenu={(e) => openMenu(e, code)}>
                     <FundCard fund={fund} />
                   </SortableCard>
                 )
@@ -228,6 +253,16 @@ function Dashboard({ searchQuery, refreshKey, useRealApi }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          title={fundMap[menu.code]?.name || menu.code}
+          subtitle={menu.code}
+          items={menuItems}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   )
 }

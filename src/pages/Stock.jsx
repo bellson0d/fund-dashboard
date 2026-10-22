@@ -2,9 +2,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import StockCard from '../components/StockCard'
 import SortableCard from '../components/SortableCard'
+import ContextMenu from '../components/ContextMenu'
 import { batchFetchStockData } from '../services/realApi'
 import { ensureAddedAt, resolveBasePrice, formatAddedDuration } from '../services/addedInfo'
 import { logChange } from '../services/portfolioHistory'
@@ -17,6 +18,8 @@ function Stock({ searchQuery, refreshKey }) {
   const [apiError, setApiError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [activeId, setActiveId] = useState(null)
+  // 右键菜单：记录坐标与被点击的股票代码
+  const [menu, setMenu] = useState(null)
 
   const loadStockData = useCallback(async () => {
     setApiError(false)
@@ -110,6 +113,28 @@ function Stock({ searchQuery, refreshKey }) {
   // 仅在"有数据待加载"时显示骨架屏：无股票时直接显示空状态
   const showSkeleton = isLoading && stockCodes.length > 0
 
+  const openMenu = (e, code) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenu({ x: e.clientX, y: e.clientY, code })
+  }
+
+  const closeMenu = useCallback(() => setMenu(null), [])
+
+  const removeStock = (code) => {
+    const name = stockMap[code]?.name || code
+    if (!window.confirm(`确定从看板删除「${name}」？`)) return
+    setStockCodes(items => items.filter(c => c !== code))
+    logChange({ type: 'stock', action: 'remove', code, name })
+  }
+
+  // 右键菜单动作：后续新增操作直接往这里追加即可
+  const menuItems = menu
+    ? [
+        { key: 'delete', label: '删除股票', icon: Trash2, danger: true, onClick: () => removeStock(menu.code) }
+      ]
+    : []
+
   return (
     <div>
       {apiError && (
@@ -158,7 +183,7 @@ function Stock({ searchQuery, refreshKey }) {
                 const stock = stockMap[code]
                 if (!stock) return null
                 return (
-                  <SortableCard key={code} id={code}>
+                  <SortableCard key={code} id={code} onContextMenu={(e) => openMenu(e, code)}>
                     <StockCard stock={stock} />
                   </SortableCard>
                 )
@@ -174,6 +199,16 @@ function Stock({ searchQuery, refreshKey }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          title={stockMap[menu.code]?.name || menu.code}
+          subtitle={menu.code}
+          items={menuItems}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   )
 }
