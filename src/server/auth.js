@@ -155,9 +155,9 @@ export function requireAuth(req, res, next) {
 
 // 写接口来源校验：配置 APP_ORIGIN 后拒绝跨站写请求（本地开发不配置则跳过）
 export function requireSameOrigin(req, res, next) {
-  const allowed = process.env.APP_ORIGIN
+  const allowed = (process.env.APP_ORIGIN || '').replace(/\/+$/, '')
   if (!allowed) return next()
-  const origin = req.headers.origin
+  const origin = (req.headers.origin || '').replace(/\/+$/, '')
   if (origin && origin !== allowed) {
     return res.status(403).json({ error: 'forbidden_origin' })
   }
