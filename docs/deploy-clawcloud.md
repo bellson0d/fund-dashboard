@@ -17,12 +17,21 @@
 
 ## 2. 仓库准备
 
+> 当前项目远程仓库是 Gitee（`origin`），而 ClawCloud Run 的代码源是 **GitHub**，
+> 因此需要先把代码放到 GitHub 上，二选一：
+>
+> - **方式 A（推荐）** 新建一个 GitHub 空仓库（私有即可），本地加一个远程并推送：
+>   ```bash
+>   git remote add github https://github.com/<你的账号>/fund-dashboard.git
+>   git push github master
+>   ```
+>   之后每次更新都执行 `git push github master`，或使用 Gitee 仓库的「镜像到 GitHub」功能自动同步。
+> - **方式 B** 本机 Docker 可用时构建镜像并推到 Docker Hub / GHCR，
+>   在 ClawCloud 选择 **Docker Image** 方式部署（无需 GitHub 仓库）。
+
 1. 确认改动已合并回主分支（或直接部署 `feat/cloud-deploy` 分支）。
-2. 把代码推送到 GitHub（ClawCloud 通过 GitHub 仓库拉取代码并构建）：
-   ```bash
-   git push origin master
-   ```
-3. 仓库根目录必须包含 `Dockerfile`、`.dockerignore`、`server.js`、`src/server/`。
+2. 仓库根目录必须包含 `Dockerfile`、`.dockerignore`、`server.js`、`src/server/`。
+3. 在 ClawCloud 创建应用时选择对应的 GitHub 仓库与分支。
 
 ## 3. 在 ClawCloud Run 创建应用
 
