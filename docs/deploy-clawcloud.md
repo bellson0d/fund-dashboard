@@ -17,38 +17,48 @@
 
 ## 2. 仓库准备
 
-> 当前项目远程仓库是 Gitee（`origin`），而 ClawCloud Run 的代码源是 **GitHub**，
-> 因此需要先把代码放到 GitHub 上，二选一：
+> 当前项目远程仓库是 Gitee（`origin`），而 ClawCloud Run 部署时填的是**镜像地址**，
+> 因此需要先把代码放到 GitHub，由 GitHub Actions 构建镜像并推送到 GHCR（无需本机 Docker）：
 >
-> - **方式 A（推荐）** 新建一个 GitHub 空仓库（public 最省事；private 需在 ClawCloud 里授权 GitHub 访问），
->   本地加一个远程并推送**改造分支**：
+> - **方式 A（推荐，无需本机 Docker）**
+>   1. 新建一个 GitHub 空仓库（public 最省事；private 也行，见下方镜像可见性说明）。
+>   2. 本地加远程并推送**改造分支**：
+>      ```bash
+>      git remote add github https://github.com/<你的账号>/fund-dashboard.git
+>      git push github feat/cloud-deploy
+>      ```
+>   3. 推送后仓库的 **Actions** 会自动运行 `Build and publish image`，
+>      产出 `ghcr.io/<你的账号>/fund-dashboard:latest`。
+>   4. 打开 GitHub 仓库 → **Packages** → 该镜像 → **Package settings → Change visibility → Public**，
+>      否则 ClawCloud 无法匿名拉取（也可以在 ClawCloud 里配置镜像仓库凭据）。
+>   5. 部署时选择 `feat/cloud-deploy`；上线验证通过、合并 master 后，再改为推送并部署 `master`。
+> - **方式 B（本机 Docker 可用时）** 本地构建并推到 ClawCloud 私有仓库：
 >   ```bash
->   git remote add github https://github.com/<你的账号>/fund-dashboard.git
->   git push github feat/cloud-deploy
+>   docker build -t registry.clawcloud.io/<账号>/fund-dashboard:latest .
+>   docker push registry.clawcloud.io/<账号>/fund-dashboard:latest
 >   ```
->   部署时选择 `feat/cloud-deploy` 分支；上线验证通过、合并 master 后，再改为推送并部署 `master`。
-> - **方式 B** 本机 Docker 可用时构建镜像并推到 Docker Hub / GHCR，
->   在 ClawCloud 选择 **Docker Image** 方式部署（无需 GitHub 仓库）。
+>   在 ClawCloud 部署时 Image 选 Private 并填写该地址。
+
+> 账号要求：ClawCloud 免费额度需要用**注册满 6 个月的 GitHub 账号**登录领取（$5/月）。
 
 1. 确认要部署的分支就是当前验证过的分支（改造阶段为 `feat/cloud-deploy`）。
-2. 仓库根目录必须包含 `Dockerfile`、`.dockerignore`、`server.js`、`src/server/`。
-3. 在 ClawCloud 创建应用时选择对应的 GitHub 仓库与分支。
+2. 仓库根目录必须包含 `Dockerfile`、`.dockerignore`、`server.js`、`src/server/`、`.github/workflows/docker-publish.yml`。
+3. GitHub Actions 构建完成后，先确认镜像地址可访问，再去 ClawCloud 创建应用。
 4. 新建仓库不要勾选 README / .gitignore / license，否则首次推送会因历史不相关被拒。
 
 ## 3. 在 ClawCloud Run 创建应用
 
 1. 注册 / 登录 ClawCloud Run，进入 **App Launchpad**（应用启动台）。
-2. 选择 **Create App → Docker / GitHub Repository**，授权并选择本仓库与分支。
-3. 构建方式选择 **Dockerfile**（仓库已有），无需填写构建命令。
-4. 区域选择离国内较近的节点（如新加坡 / 日本），避免选择欧美节点。
-5. 容器配置：
-   - 端口：`3000`（HTTP）
-   - 实例数 / 副本数：**1**（SQLite 是单文件，不支持多副本同时写入）
-   - 规格：0.5 核 / 512MB 起即可，免费额度（$5/月）足够
-6. 存储卷（Volume）：
-   - 新建卷并挂载到 **`/data`**
+2. 点击 **Create App**，按控制台表单填写：
+   - **Basic**：Application Name 任意（如 `fund-dashboard`）；Image 选 **Public**；
+     Image Name 填 `ghcr.io/<你的账号>/fund-dashboard:latest`（若镜像设为私有，则选 Private 并配置凭据）
+   - **Usage**：Fixed；Replicas `1`；CPU `1`；Memory `512M`
+   - **Network**：Container Port `3000`；Public Access 打开
+3. 区域选择离国内较近的节点（如新加坡 / 日本），避免选择欧美节点。
+4. 存储（Local Storage）：
+   - 添加 `1G` 存储，挂载路径填 **`/data`**
    - 这是数据库唯一持久化位置，**不挂载会导致每次重新部署数据丢失**
-7. 环境变量（参考 `.env.example`）：
+5. 环境变量（参考 `.env.example`）：
 
    | 变量 | 值 | 说明 |
    |---|---|---|
@@ -61,8 +71,9 @@
    | `LOGIN_RATE_LIMIT` | `5` | 15 分钟内允许的失败次数 |
    | `LOGIN_RATE_WINDOW_MIN` | `15` | 限流窗口（分钟） |
 
-8. 点击部署，等待构建完成。首次构建需要 `npm ci` + `vite build`，耐心等待。
-9. 打开平台分配的免费子域名，应看到登录页。
+6. 点击 **Deploy Application**，等待公共地址状态变为 **Available**（首次拉取镜像需要几分钟）。
+7. 打开平台分配的免费子域名，应看到登录页。
+8. 后续代码更新：重新推送分支触发 Actions 生成新镜像，再在应用右上角点 **Update** 重新拉取。
 
 > 说明：免费额度的应用可能在长时间无访问后休眠，首次访问会有几秒冷启动；持久卷中的数据不受影响。
 
@@ -106,6 +117,7 @@
 | 现象 | 处理 |
 |---|---|
 | 部署后登录立刻失效 | `APP_ORIGIN` 与实际访问域名不一致；Cookie 带了 `Secure` 但用 http 访问 |
+| 镜像拉取失败 / ImagePullBackOff | GHCR 包仍是 Private；在 Packages 里改成 Public，或在 ClawCloud 配置镜像仓库凭据 |
 | `/api/healthz` 500 | 卷未挂载或目录不可写；检查 `DATA_DIR` 是否指向 `/data` |
 | SQLite 报 `disk I/O error` / 无法打开 | 网络卷不支持 WAL 共享内存，设置 `SQLITE_JOURNAL_MODE=DELETE` |
 | 数据在重新部署后消失 | 卷没有挂到 `/data`，或覆盖了旧卷 |
