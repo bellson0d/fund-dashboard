@@ -20,18 +20,20 @@
 > 当前项目远程仓库是 Gitee（`origin`），而 ClawCloud Run 的代码源是 **GitHub**，
 > 因此需要先把代码放到 GitHub 上，二选一：
 >
-> - **方式 A（推荐）** 新建一个 GitHub 空仓库（私有即可），本地加一个远程并推送：
+> - **方式 A（推荐）** 新建一个 GitHub 空仓库（public 最省事；private 需在 ClawCloud 里授权 GitHub 访问），
+>   本地加一个远程并推送**改造分支**：
 >   ```bash
 >   git remote add github https://github.com/<你的账号>/fund-dashboard.git
->   git push github master
+>   git push github feat/cloud-deploy
 >   ```
->   之后每次更新都执行 `git push github master`，或使用 Gitee 仓库的「镜像到 GitHub」功能自动同步。
+>   部署时选择 `feat/cloud-deploy` 分支；上线验证通过、合并 master 后，再改为推送并部署 `master`。
 > - **方式 B** 本机 Docker 可用时构建镜像并推到 Docker Hub / GHCR，
 >   在 ClawCloud 选择 **Docker Image** 方式部署（无需 GitHub 仓库）。
 
-1. 确认改动已合并回主分支（或直接部署 `feat/cloud-deploy` 分支）。
+1. 确认要部署的分支就是当前验证过的分支（改造阶段为 `feat/cloud-deploy`）。
 2. 仓库根目录必须包含 `Dockerfile`、`.dockerignore`、`server.js`、`src/server/`。
 3. 在 ClawCloud 创建应用时选择对应的 GitHub 仓库与分支。
+4. 新建仓库不要勾选 README / .gitignore / license，否则首次推送会因历史不相关被拒。
 
 ## 3. 在 ClawCloud Run 创建应用
 
@@ -70,6 +72,9 @@
 - [ ] `GET /api/healthz` 返回 `{"ok":true}`（容器健康检查也用这个地址）
 - [ ] 注册一个账号（用户名 3–20 位字母数字下划线，密码至少 8 位且含字母和数字）
 - [ ] 注册后能进入看板；Admin 中"重置默认"可恢复 24 只基金默认列表
+- [ ] 基金卡片能显示净值与 TOP10 持仓（验证容器内 `/api/pingzhong` 代理可用）
+- [ ] Admin 添加基金时输入代码能搜到结果（验证 `/api/fundlist` 代理可用，非 502/超时）
+- [ ] 股票页能显示行情（浏览器直连 HTTPS 上游，非代理）
 - [ ] 手机流量（非代理网络）访问速度可接受
 - [ ] 退出登录后刷新页面回到登录页；重新登录后数据仍在
 - [ ] 再注册第二个账号，看不到第一个账号的数据（数据隔离）
