@@ -191,8 +191,9 @@ function Admin({ useRealApi, onApiToggle }) {
     ? currentList.filter(f => !currentCodes.includes(f.code))
     : []
   
+  // 基金搜索结果包含已添加项（显示“已添加”标记，而不是被过滤掉）
   const filteredItems = adminTab === 'fund'
-    ? (searchKeyword ? searchFunds(searchKeyword, availableItems) : availableItems.slice(0, 20))
+    ? (searchKeyword ? searchFunds(searchKeyword, currentList) : availableItems.slice(0, 20))
     : stockSearchResults
 
   const addItem = (code) => {
@@ -444,34 +445,41 @@ function Admin({ useRealApi, onApiToggle }) {
                     ? (searchKeyword 
                         ? '未找到匹配的股票' 
                         : '输入股票名称(如"比亚迪")、拼音(如"byd")或代码(如"002594")进行搜索')
-                    : (searchKeyword && availableItems.length === 0 
-                        ? '所有基金已添加' 
-                        : searchKeyword 
+                    : (searchKeyword 
                         ? '未找到匹配的基金'
                         : '输入基金名称或代码进行搜索')}
                 </p>
               ) : (
-                filteredItems.map(item => (
-                  <div
-                    key={item.code}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-800 truncate">{item.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {item.code} 
-                        {adminTab === 'fund' && item.type && ` · ${item.type}`}
-                        {adminTab === 'stock' && item.market && ` · ${item.market}`}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => addItem(item.code)}
-                      className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
+                filteredItems.map(item => {
+                  const isAdded = currentCodes.includes(item.code)
+                  return (
+                    <div
+                      key={item.code}
+                      className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      添加
-                    </button>
-                  </div>
-                ))
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-800 truncate">{item.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.code} 
+                          {adminTab === 'fund' && item.type && ` · ${item.type}`}
+                          {adminTab === 'stock' && item.market && ` · ${item.market}`}
+                        </p>
+                      </div>
+                      {isAdded ? (
+                        <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-500 rounded-md ml-2 flex-shrink-0">
+                          已添加
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => addItem(item.code)}
+                          className="px-3 py-1 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ml-2"
+                        >
+                          添加
+                        </button>
+                      )}
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>
