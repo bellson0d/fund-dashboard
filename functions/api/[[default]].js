@@ -1,11 +1,40 @@
 // EdgeOne Pages Edge Function —— /api/* 后端
 // 运行在边缘函数（V8）环境：仅使用 Web API（fetch / WebCrypto / Request / Response）
 // 数据持久化使用 Pages KV（绑定变量名默认为 KV），不再依赖 SQLite 文件
-import { defaultFundCodes } from '../../src/data/mockData.js'
-import { defaultStockCodes } from '../../src/data/stockData.js'
-import {
-  DEFAULT_FUND_ADDED_AT, DEFAULT_STOCK_ADDED_AT, FALLBACK_MONTHS, monthsAgo
-} from '../../src/shared/addedDefaults.js'
+
+// 默认代码列表与添加时间规则：与 src/data/mockData.js、src/data/stockData.js、
+// src/shared/addedDefaults.js 保持一致（函数独立打包，避免依赖目录外文件）
+const defaultFundCodes = [
+  '024239', '018147', '017731', '021842',
+  '014002', '011730', '005661', '008809',
+  '012922', '001407',
+  '006373', '519696', '015523', '006443',
+  '002811', '010365', '006809', '016246',
+  '015566', '017043', '519191', '023350',
+  '019484', '007950'
+]
+
+const defaultStockCodes = [
+  '116.01211', '116.00175', '116.02333', '116.01810',
+  '116.09868', '116.02015', '0.300499', '0.002837',
+  '0.301018', '1.600875', '116.01133', '1.600584',
+  '1.600667', '1.688498', '1.688048', '0.002281',
+  '0.300604', '1.688627', '0.002980', '0.002916',
+  '1.600176', '0.002080', '116.02382', '0.301486'
+]
+
+const DEFAULT_FUND_ADDED_AT = '2026-05-14'
+const DEFAULT_STOCK_ADDED_AT = '2026-05-15'
+const FALLBACK_MONTHS = 3
+
+function monthsAgo(months, from = new Date()) {
+  const date = new Date(from)
+  date.setMonth(date.getMonth() - months)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 
 const TYPES = ['fund', 'stock']
 const DEFAULT_CODES = { fund: defaultFundCodes, stock: defaultStockCodes }
