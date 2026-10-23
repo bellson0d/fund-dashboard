@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:server": "node server.js",
     "build": "vite build",
+    "build:edge": "vite build --base=/",
     "preview": "vite preview --port 4173",
     "start": "NODE_ENV=production node server.js",
     "deploy": "gh-pages -d dist"
