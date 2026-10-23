@@ -1,6 +1,7 @@
 # Fund Dashboard - 部署说明
 
-> 线上云部署（登录 + SQLite + ClawCloud Run）请看 [docs/deploy-clawcloud.md](docs/deploy-clawcloud.md)，本文档仅保留本地/PM2 运行方式。
+> 线上部署走 EdgeOne Pages（Gitee + 边缘函数 + KV），见 [docs/deploy-edgeone.md](docs/deploy-edgeone.md)。
+> ClawCloud/SQLite 方案见 [docs/deploy-clawcloud.md](docs/deploy-clawcloud.md)；本文档仅保留本地/PM2 运行方式。
 
 
 ## 版本信息

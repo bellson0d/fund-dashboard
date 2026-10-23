@@ -1,5 +1,7 @@
 # ClawCloud Run 部署与上线检查清单
 
+> 已改用 EdgeOne Pages 作为线上主方案，见 [deploy-edgeone.md](deploy-edgeone.md)。本文档保留作备用（自建服务器 / 容器）方案。
+
 > 目标：把基金看板部署到免费容器平台，任意设备登录后使用同一份数据；数据存 SQLite 文件并挂载持久卷。
 
 ## 1. 架构
