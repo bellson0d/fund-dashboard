@@ -11,14 +11,14 @@
   ▼
 EdgeOne Pages
   ├─ 静态资源：dist（Vite 构建，HashRouter，无需 SPA 重写）
-  └─ /api/*  → functions/api/[[default]].js（边缘函数，V8 + Web API）
+  └─ /api/*  → edge-functions/api/[[default]].js（边缘函数，V8 + Web API）
                  ├─ 认证：PBKDF2-SHA256 + HttpOnly Cookie 会话
                  ├─ 数据：Pages KV（用户/会话/持仓/快照/变更）
                  └─ 行情代理：天天基金、东方财富
 ```
 
 - 数据库由 SQLite 换成 **Pages KV**（边缘键值存储，1GB/账户，最终一致，60s 内全球同步）。
-- 后端代码在 `functions/api/[[default]].js`，只使用 Web 标准 API（fetch / WebCrypto / Request / Response），不使用 Node 内置模块。
+- 后端代码在 `edge-functions/api/[[default]].js`，只使用 Web 标准 API（fetch / WebCrypto / Request / Response），不使用 Node 内置模块。函数目录必须是 `edge-functions/`（EdgeOne Pages 的约定），不是 `functions/`。
 - 本地开发仍可用 `npm run dev` + `npm run dev:server`（Express + SQLite），两套后端接口一致。
 
 ## 一、准备仓库
@@ -58,7 +58,7 @@ EdgeOne Pages 关联私有仓库需要授权 Gitee，首次导入时按控制台
 ## 四、绑定域名（推荐）
 
 1. 项目详情 → **域名管理** → **添加域名**，填 `fund.<你的域名>`。
-2. 按提示在阿里云 DNS 添加 CNAME 记录（指向控制台给出的 `*.edgeone.app` 或类似目标）。
+2. 按提示在阿里云 DNS 添加 CNAME 记录，目标值填控制台为该项目分配的加速域名（形如 `xxx.edgeone.app` / `xxx.edgeone.site`，以控制台显示为准）。
 3. 等待证书自动签发（通常几分钟），之后用 `https://fund.<你的域名>` 访问。
 4. 不绑域名也能用平台分配的预览域名，但预览域名带随机串、且部分浏览器对第三方 Cookie 更严格，正式使用建议绑自己的子域。
 
@@ -90,15 +90,16 @@ EdgeOne Pages 关联私有仓库需要授权 Gitee，首次导入时按控制台
 |---|---|---|
 | KV 一致性 | 最终一致，60s 内全球同步 | 极端情况下刚写入的数据在另一地域短暂读不到；单人使用基本无感 |
 | KV 容量 | 1GB/账户，单值 25MB | 快照 100 条、变更 500 条远低于上限 |
-| 请求体 | 6MB | 导入 JSON 一般 <1MB |
-| 函数时长 | 30s | 行情批量请求已控制在 20 只/批，正常远低于限制 |
-| KV 调用范围 | 仅 Edge Functions 支持 | 因此后端用 `functions/`，不是 `node-functions/` |
+| 请求体 | 1MB | 全量导入 JSON 需小于 1MB（快照 100 条 + 变更 500 条正常远小于此） |
+| 函数时长 | 30s（CPU 200ms） | 行情批量请求已控制在 20 只/批，CPU 主要花在 PBKDF2（约几十毫秒） |
+| KV 调用范围 | 仅 Edge Functions 支持 | 因此后端放 `edge-functions/`，不能用 `node-functions/` |
 | 会话 | HttpOnly + Secure + SameSite=Lax | 必须通过 HTTPS 访问（绑定域名后即可） |
 
 ## 八、常见问题
 
 | 现象 | 原因与处理 |
 |---|---|
+| 接口全部 404 | 函数没被识别：目录必须是仓库根目录下的 `edge-functions/`，且文件需导出 `onRequest`；改完重新部署 |
 | 接口返回 `storage_unavailable` | KV 未绑定或变量名不是 `KV`；绑定后需重新部署 |
 | 页面 404 / 资源加载失败 | 构建命令用了 `npm run build`（产物路径带 `/fund-dashboard/`），改成 `npm run build:edge` |
 | 登录后刷新又回到登录页 | 未用 HTTPS 访问（Cookie 带 Secure），或域名与预览域名混用导致跨站 |
